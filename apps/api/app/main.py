@@ -49,6 +49,6 @@ app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(cars_router, prefix=API_PREFIX)
 app.include_router(shaken_router, prefix=API_PREFIX)
 
-@app.get("/")
-def root():
-    return {"status": "ok"}
+@app.api_route("/health", methods=["GET", "HEAD"])
+def health():
+    return {"ok": True}
