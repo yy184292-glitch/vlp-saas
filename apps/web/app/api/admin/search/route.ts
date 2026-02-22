@@ -1,17 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { proxyPostJson } from "../_proxy";
 
-/**
- * 30秒キャッシュ（同じqなら上流に投げずに返す）
- * ※Renderはインスタンス再起動でキャッシュ消えるが、429回避には十分効く
- */
 const cache = new Map<string, { at: number; data: any }>();
 const TTL_MS = 30_000;
 
-// 同一IPの連打も抑止（2秒で最大2回）
 const ipWindow = new Map<string, { at: number; n: number }>();
 const IP_WINDOW_MS = 2_000;
 const IP_MAX = 2;
+
+function mustEnv(name: string): string {
+  const v = process.env[name];
+  if (!v) throw new Error(`Missing env: ${name}`);
+  return v;
+}
+
+function baseUrl(): string {
+  return mustEnv("ADMIN_API_BASE_URL").replace(/\/+$/, "");
+}
 
 function getIp(req: NextRequest): string {
   return (
@@ -22,7 +26,6 @@ function getIp(req: NextRequest): string {
 }
 
 function keyFromBody(body: any): string {
-  // issuer_guiのpayloadは { q: string } 想定
   const q = String(body?.q ?? "").trim().toLowerCase();
   return `q=${q}`;
 }
@@ -31,7 +34,6 @@ export async function POST(req: NextRequest) {
   const ip = getIp(req);
   const now = Date.now();
 
-  // IP制限（軽め）
   const w = ipWindow.get(ip);
   if (!w || now - w.at > IP_WINDOW_MS) {
     ipWindow.set(ip, { at: now, n: 1 });
@@ -48,18 +50,45 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const key = keyFromBody(body);
 
-  // キャッシュヒット
   const hit = cache.get(key);
   if (hit && now - hit.at < TTL_MS) {
-    return NextResponse.json({ ...(hit.data ?? {}), _cache: true }, { status: 200 });
+    return NextResponse.json({ ...hit.data, _cache: true }, { status: 200 });
   }
 
-  // 上流へ
-  const res = await proxyPostJson("/admin/search", body);
+  const url = `${baseUrl()}/admin/search`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${mustEnv("ISSUER_ADMIN_TOKEN")}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    cache: "no-store",
+  });
 
-  // proxyPostJsonはNextResponseを返すので、ここでJSONを抜きたい場合は工夫が必要
-  // → proxyPostJsonを使わずに直接fetchする方がキャッシュには向く
-  // ここでは安全のため、proxyPostJsonをやめて直接実装する
+  const text = await res.text();
+  let data: any = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    data = { raw: text };
+  }
 
-  return res;
+  if (res.status === 429) {
+    // 上流からの429はUIに待機指示を返す（自動リトライしない）
+    return NextResponse.json(
+      { detail: "Upstream rate-limited. Wait 10–30 seconds and retry.", upstream: true },
+      { status: 429 }
+    );
+  }
+
+  if (!res.ok) {
+    return NextResponse.json(
+      { detail: data?.detail ?? data ?? `HTTP ${res.status}` },
+      { status: res.status }
+    );
+  }
+
+  cache.set(key, { at: now, data });
+  return NextResponse.json(data, { status: 200 });
 }
