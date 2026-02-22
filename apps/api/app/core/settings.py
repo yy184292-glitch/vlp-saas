@@ -1,0 +1,37 @@
+from functools import lru_cache
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+
+    # Database
+    sqlalchemy_database_url: str = Field(alias="DATABASE_URL")
+
+    # JWT（←これを統一）
+    SECRET_KEY: str = Field(alias="SECRET_KEY")
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
+
+    # Environment
+    ENV: str = Field(default="local", alias="ENV")
+
+    # CORS
+    CORS_ALLOW_ORIGINS: str = Field(
+        default="http://localhost:3000",
+        alias="CORS_ALLOW_ORIGINS",
+    )
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
+
+
+settings = get_settings()
