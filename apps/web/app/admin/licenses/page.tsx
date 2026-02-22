@@ -1,152 +1,110 @@
-"use client";
+'use client';
 
-import { useState } from "react";
+import { useState } from 'react';
 
 type License = {
-  license_key: string;
-  customer_name?: string;
-  customer_id?: string;
-  expires_on?: string;
-  revoked?: boolean;
+  key: string;
+  email: string;
+  status: string;
+  expires_at: string;
 };
 
-async function api(path: string, body: any) {
-  const res = await fetch("/api/admin" + path, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-
-  const text = await res.text();
-
-  let data: any;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    throw new Error(text);
-  }
-
-  if (!res.ok) {
-    throw new Error(data?.detail || "API error");
-  }
-
-  return data;
-}
-
-export default function Page() {
-  const [q, setQ] = useState("");
-  const [list, setList] = useState<License[]>([]);
-  const [selected, setSelected] = useState<License | null>(null);
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
+export default function AdminLicensesPage() {
+  const [query, setQuery] = useState('');
+  const [licenses, setLicenses] = useState<License[]>([]);
+  const [loading, setLoading] = useState(false);
+  const API = process.env.NEXT_PUBLIC_APP_URL;
 
   async function search() {
-    if (!q.trim()) return;
-
     try {
-      setBusy(true);
-      setError("");
+      setLoading(true);
 
-      const res = await api("/search", { q });
+      const res = await fetch('/api/admin/search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query }),
+      });
 
-      setList(res.rows || res || []);
-    } catch (e: any) {
-      setError(e.message);
+      if (!res.ok) throw new Error('Search failed');
+
+      const data = await res.json();
+      setLicenses(data.licenses || []);
+    } catch (err) {
+      console.error(err);
+      alert('検索失敗');
     } finally {
-      setBusy(false);
+      setLoading(false);
     }
   }
 
-  async function extend(days: number) {
-    if (!selected) return;
+  async function action(type: string, key: string) {
+    try {
+      const res = await fetch(`/api/admin/${type}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      });
 
-    await api("/extend", {
-      license_key: selected.license_key,
-      days,
-    });
+      if (!res.ok) throw new Error(type + ' failed');
 
-    await search();
-  }
-
-  async function toggle() {
-    if (!selected) return;
-
-    const path = selected.revoked ? "/revive" : "/revoke";
-
-    await api(path, {
-      license_key: selected.license_key,
-    });
-
-    await search();
+      await search();
+    } catch (err) {
+      console.error(err);
+      alert(type + '失敗');
+    }
   }
 
   return (
     <div style={{ padding: 20 }}>
-      <h1>管理者ライセンス</h1>
+      <h1>License Admin</h1>
 
-      <div>
+      <div style={{ marginBottom: 20 }}>
         <input
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="license / customer / email"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="email or license key"
         />
 
-        <button onClick={search} disabled={busy}>
-          {busy ? "検索中..." : "検索"}
+        <button onClick={search} disabled={loading}>
+          {loading ? 'Searching...' : 'Search'}
         </button>
       </div>
 
-      {error && <div style={{ color: "red" }}>{error}</div>}
-
-      <table border={1} cellPadding={5}>
+      <table border={1} cellPadding={10}>
         <thead>
           <tr>
-            <th>License</th>
-            <th>Customer</th>
+            <th>Key</th>
+            <th>Email</th>
+            <th>Status</th>
             <th>Expires</th>
-            <th>Revoked</th>
+            <th>Action</th>
           </tr>
         </thead>
 
         <tbody>
-          {list.map((x) => (
-            <tr
-              key={x.license_key}
-              onClick={() => setSelected(x)}
-              style={{
-                background:
-                  selected?.license_key === x.license_key
-                    ? "#eef"
-                    : "",
-                cursor: "pointer",
-              }}
-            >
-              <td>{x.license_key}</td>
-              <td>{x.customer_name}</td>
-              <td>{x.expires_on}</td>
-              <td>{String(x.revoked)}</td>
+          {licenses.map((lic) => (
+            <tr key={lic.key}>
+              <td>{lic.key}</td>
+              <td>{lic.email}</td>
+              <td>{lic.status}</td>
+              <td>{lic.expires_at}</td>
+              <td>
+                <button onClick={() => action('extend', lic.key)}>
+                  Extend
+                </button>
+
+                <button onClick={() => action('revoke', lic.key)}>
+                  Revoke
+                </button>
+
+                <button onClick={() => action('revive', lic.key)}>
+                  Revive
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
-
-      {selected && (
-        <div style={{ marginTop: 20 }}>
-          <h3>{selected.license_key}</h3>
-
-          <button onClick={() => extend(30)}>
-            +30日
-          </button>
-
-          <button onClick={() => extend(365)}>
-            +365日
-          </button>
-
-          <button onClick={toggle}>
-            {selected.revoked ? "復活" : "失効"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
