@@ -1,4 +1,4 @@
-import { CarsTable } from "@/components/cars/cars-table";
+import { CarsTable } from "@/components/cars/car-table";
 
 export default function CarsPage() {
   return (

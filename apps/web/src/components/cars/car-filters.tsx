@@ -23,7 +23,7 @@ export function CarFilters({
         onChange={(e) => onChange({ ...value, q: e.target.value })}
         className="md:w-96"
       />
-      <Select value={value.status} onValueChange={(v) => onChange({ ...value, status: v as any })}>
+      <Select value={value.status} onValueChange={(v: string) => onChange({ ...value, status: v as any })}>
         <SelectTrigger className="md:w-56">
           <SelectValue placeholder="ステータス" />
         </SelectTrigger>

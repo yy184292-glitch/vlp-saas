@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { CarUpsertSchema } from "@/lib/schema/car";
+import { CarUpsertSchema } from "../../../../../lib/schema/car";
 
 type CarRow = {
   id: string;

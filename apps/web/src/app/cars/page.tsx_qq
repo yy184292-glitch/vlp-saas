@@ -1,0 +1,306 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { listCars, createCar, deleteCar, updateCar } from "@/lib/api";
+
+type Car = {
+  id: string;
+  maker: string;
+  model: string;
+  year: number; // ← yearは number に統一
+};
+
+type DraftCar = {
+  maker: string;
+  model: string;
+  year: string; // 入力欄は string のほうが扱いやすい
+};
+
+function toYearNumber(yearStr: string): number {
+  const n = Number(yearStr);
+  if (!Number.isFinite(n) || !Number.isInteger(n)) {
+    throw new Error("Year must be an integer number.");
+  }
+  if (n < 1886 || n > 3000) {
+    throw new Error("Year out of range.");
+  }
+  return n;
+}
+
+export default function CarsPage() {
+  const router = useRouter();
+
+  const [cars, setCars] = useState<Car[]>([]);
+  const [draft, setDraft] = useState<DraftCar>({ maker: "", model: "", year: "" });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Drawer（編集）
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const editingCar = useMemo(
+    () => cars.find((c) => c.id === editingId) ?? null,
+    [cars, editingId]
+  );
+  const [editDraft, setEditDraft] = useState<DraftCar>({ maker: "", model: "", year: "" });
+  const [saving, setSaving] = useState(false);
+
+  // token確認 + cars取得
+  useEffect(() => {
+    const token = localStorage.getItem("access_token");
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+    void fetchCars();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function fetchCars() {
+    try {
+      setError(null);
+      setLoading(true);
+      const data = await listCars();
+      setCars(data);
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+
+    try {
+      setError(null);
+      await createCar(payload){
+        maker: draft.maker.trim(),
+        model: draft.model.trim(),
+        year: toYearNumber(draft.year),
+      });
+
+      setDraft({ maker: "", model: "", year: "" });
+      await fetchCars();
+    } catch (err) {
+      alert(String(err));
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm("Delete this car?")) return;
+
+    try {
+      setError(null);
+
+      // Optimistic: 先に消す
+      const prev = cars;
+      setCars((cs) => cs.filter((c) => c.id !== id));
+
+      await deleteCar(id);
+
+      // 編集中の対象を消した場合はDrawer閉じる
+      setEditingId((cur) => (cur === id ? null : cur));
+    } catch (err) {
+      // rollback
+      await fetchCars();
+      alert(String(err));
+    }
+  }
+
+  function openEdit(car: Car) {
+    setEditingId(car.id);
+    setEditDraft({
+      maker: car.maker ?? "",
+      model: car.model ?? "",
+      year: String(car.year ?? ""),
+    });
+  }
+
+  function closeEdit() {
+    setEditingId(null);
+    setEditDraft({ maker: "", model: "", year: "" });
+  }
+
+  async function handleSaveEdit() {
+    if (!editingId || !editingCar) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+
+      const payload = {
+        stockNo: draft.stockNo || "TEMP",
+        maker: draft.maker,
+        model: draft.model,
+        year: Number(draft.year) || 2000,
+        price: Number(draft.price) || 0,
+        status: draft.status || "available",
+      };
+
+
+
+      // Optimistic: 先に一覧へ反映
+      const prevCars = cars;
+      setCars((cs) =>
+        cs.map((c) => (c.id === editingId ? { ...c, ...payload } : c))
+      );
+
+      await updateCar(targetId, payload);
+
+      // 成功したら閉じてもいいし、開いたままでもOK（好み）
+      closeEdit();
+    } catch (err) {
+      // rollback
+      await fetchCars();
+      alert(String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (loading) return <div style={{ padding: 20 }}>Loading...</div>;
+
+  return (
+    <main style={{ padding: 20 }}>
+      <h1 style={{ marginBottom: 12 }}>Cars</h1>
+
+      {error && (
+        <pre style={{ background: "#111", color: "#eee", padding: 12, borderRadius: 8 }}>
+          {error}
+        </pre>
+      )}
+
+      {/* Create form */}
+      <form onSubmit={handleCreate} style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <input
+          placeholder="Make"
+          value={draft.make}
+          onChange={(e) => setDraft((d) => ({ ...d, make: e.target.value }))}
+        />
+        <input
+          placeholder="Model"
+          value={draft.model}
+          onChange={(e) => setDraft((d) => ({ ...d, model: e.target.value }))}
+        />
+        <input
+          placeholder="Year"
+          inputMode="numeric"
+          value={draft.year}
+          onChange={(e) => setDraft((d) => ({ ...d, year: e.target.value }))}
+        />
+        <button type="submit">Create</button>
+      </form>
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 360px", gap: 16 }}>
+        {/* List */}
+        <div>
+          <table border={1} cellPadding={8} style={{ width: "100%" }}>
+            <thead>
+              <tr>
+                <th align="left">Make</th>
+                <th align="left">Model</th>
+                <th align="left">Year</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {cars.map((car) => (
+                <tr
+                  key={car.id}
+                  style={{
+                    cursor: "pointer",
+                    background: editingId === car.id ? "#f3f4f6" : undefined,
+                  }}
+                  onClick={() => openEdit(car)}
+                >
+                  <td>{car.make}</td>
+                  <td>{car.model}</td>
+                  <td>{car.year}</td>
+                  <td onClick={(e) => e.stopPropagation()}>
+                    <button onClick={() => openEdit(car)} style={{ marginRight: 8 }}>
+                      Edit
+                    </button>
+                    <button onClick={() => handleDelete(car.id)}>Delete</button>
+                  </td>
+                </tr>
+              ))}
+              {cars.length === 0 && (
+                <tr>
+                  <td colSpan={4} style={{ opacity: 0.7 }}>
+                    No cars yet
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Right Drawer (simple panel) */}
+        <aside
+          style={{
+            border: "1px solid #ddd",
+            borderRadius: 12,
+            padding: 12,
+            minHeight: 200,
+            position: "sticky",
+            top: 12,
+            alignSelf: "start",
+            background: "#fff",
+          }}
+        >
+          {!editingCar ? (
+            <div style={{ opacity: 0.7 }}>Select a row to edit</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <strong>Edit</strong>
+                <button onClick={closeEdit}>Close</button>
+              </div>
+
+              <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span>Make</span>
+                  <input
+                    value={editDraft.make}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, make: e.target.value }))}
+                  />
+                </label>
+
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span>Model</span>
+                  <input
+                    value={editDraft.model}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, model: e.target.value }))}
+                  />
+                </label>
+
+                <label style={{ display: "grid", gap: 4 }}>
+                  <span>Year</span>
+                  <input
+                    inputMode="numeric"
+                    value={editDraft.year}
+                    onChange={(e) => setEditDraft((d) => ({ ...d, year: e.target.value }))}
+                  />
+                </label>
+
+                <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                  <button onClick={handleSaveEdit} disabled={saving}>
+                    {saving ? "Saving..." : "Save"}
+                  </button>
+                  <button onClick={closeEdit} disabled={saving}>
+                    Cancel
+                  </button>
+                </div>
+
+                <div style={{ fontSize: 12, opacity: 0.7, marginTop: 8 }}>
+                  id: {editingCar.id}
+                </div>
+              </div>
+            </>
+          )}
+        </aside>
+      </div>
+    </main>
+  );
+}

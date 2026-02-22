@@ -17,7 +17,7 @@ export function CarForm({
   submitting?: boolean;
 }) {
   const form = useForm<CarUpsertInput>({
-    resolver: zodResolver(CarUpsertSchema),
+    resolver: zodResolver(CarUpsertSchema) as any,
     defaultValues: {
       stockNo: defaultValues.stockNo ?? "",
       maker: defaultValues.maker ?? "",
@@ -56,7 +56,7 @@ export function CarForm({
           <Input type="number" {...register("price", { valueAsNumber: true })} />
         </Field>
         <Field label="ステータス" error={formState.errors.status?.message}>
-          <Select value={status} onValueChange={(v) => setValue("status", v as any, { shouldValidate: true })}>
+          <Select value={status} onValueChange={(v: string) => setValue("status", v as any, { shouldValidate: true })}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
