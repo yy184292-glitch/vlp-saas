@@ -1,0 +1,90 @@
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+import uuid
+
+
+# revision identifiers
+revision = "add_cars_user_id_permanent"
+down_revision = "aa5d55cd64f8"
+branch_labels = None
+depends_on = None
+
+
+SYSTEM_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000000")
+SYSTEM_EMAIL = "system@local"
+
+
+def upgrade():
+    conn = op.get_bind()
+
+    # 1) system user 作成（usersテーブルの実カラムに合わせる）
+    # - users: id, email, password_hash, is_active, created_at  (user.py準拠)
+    # - email 競合も含めて安全に無視するため ON CONFLICT DO NOTHING を使う
+    conn.execute(
+        sa.text(
+            '''
+            INSERT INTO users (id, email, password_hash, is_active, created_at)
+            VALUES (:id, :email, NULL, true, NOW())
+            ON CONFLICT DO NOTHING
+            '''
+        ),
+        {"id": SYSTEM_USER_ID, "email": SYSTEM_EMAIL},
+    )
+
+    # 2) cars.user_id 追加（まずは nullable=True で追加し、同一migration内で backfill → NOT NULL 化）
+    op.add_column(
+        "cars",
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=True,
+        ),
+    )
+
+    # 3) 既存carsをsystem userへ backfill
+    conn.execute(
+        sa.text(
+            '''
+            UPDATE cars
+            SET user_id = :id
+            WHERE user_id IS NULL
+            '''
+        ),
+        {"id": SYSTEM_USER_ID},
+    )
+
+    # 4) NOT NULL
+    op.alter_column("cars", "user_id", nullable=False)
+
+    # 5) FK
+    op.create_foreign_key(
+        "fk_cars_user_id",
+        "cars",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+
+    # 6) index
+    op.create_index("ix_cars_user_id", "cars", ["user_id"])
+
+
+def downgrade():
+    conn = op.get_bind()
+
+    op.drop_index("ix_cars_user_id", table_name="cars")
+    op.drop_constraint("fk_cars_user_id", "cars", type_="foreignkey")
+    op.drop_column("cars", "user_id")
+
+    # system user を消す（他テーブル参照が増えたらここは消さずに残す方が安全）
+    conn.execute(
+        sa.text(
+            '''
+            DELETE FROM users
+            WHERE id = :id
+            '''
+        ),
+        {"id": SYSTEM_USER_ID},
+    )

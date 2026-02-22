@@ -1,0 +1,100 @@
+from alembic import op
+import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
+import uuid
+
+
+# revision identifiers
+revision = "add_cars_user_id_permanent"
+down_revision = "aa5d55cd64f8"
+branch_labels = None
+depends_on = None
+
+
+SYSTEM_USER_ID = uuid.UUID("00000000-0000-0000-0000-000000000000")
+
+
+def upgrade():
+    conn = op.get_bind()
+
+    # 1. system user 作成（存在しなければ）
+    conn.execute(
+        sa.text(
+            '''
+            INSERT INTO users (id, email, hashed_password, is_active, is_superuser)
+            VALUES (:id, 'system@local', '!', true, true)
+            ON CONFLICT (id) DO NOTHING
+            '''
+        ),
+        {"id": SYSTEM_USER_ID},
+    )
+
+    # 2. user_id 列追加
+    op.add_column(
+        "cars",
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            nullable=True,
+        ),
+    )
+
+    # 3. 既存データ backfill
+    conn.execute(
+        sa.text(
+            '''
+            UPDATE cars
+            SET user_id = :id
+            WHERE user_id IS NULL
+            '''
+        ),
+        {"id": SYSTEM_USER_ID},
+    )
+
+    # 4. NOT NULL 制約
+    op.alter_column(
+        "cars",
+        "user_id",
+        nullable=False,
+    )
+
+    # 5. FK 制約
+    op.create_foreign_key(
+        "fk_cars_user_id",
+        "cars",
+        "users",
+        ["user_id"],
+        ["id"],
+        ondelete="CASCADE",
+    )
+
+    # 6. index
+    op.create_index(
+        "ix_cars_user_id",
+        "cars",
+        ["user_id"],
+    )
+
+
+def downgrade():
+    conn = op.get_bind()
+
+    op.drop_index("ix_cars_user_id", table_name="cars")
+
+    op.drop_constraint(
+        "fk_cars_user_id",
+        "cars",
+        type_="foreignkey",
+    )
+
+    op.drop_column("cars", "user_id")
+
+    conn.execute(
+        sa.text(
+            '''
+            DELETE FROM users
+            WHERE id = :id
+            '''
+        ),
+        {"id": SYSTEM_USER_ID},
+    )

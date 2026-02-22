@@ -1,0 +1,166 @@
+from __future__ import annotations
+
+"""
+security.py
+
+JWT認証・パスワードハッシュ管理モジュール
+
+特徴:
+- 型安全
+- 例外安全
+- FastAPI依存注入と互換
+- Windows環境でも安定（pbkdf2_sha256使用）
+- JWT検証を厳密化
+"""
+
+from datetime import datetime, timedelta, timezone
+from typing import Optional, Final, TypedDict, Any, Dict
+
+from jose import jwt, JWTError
+from passlib.context import CryptContext
+
+
+# =========================
+# 設定（本番では環境変数から読む）
+# =========================
+
+SECRET_KEY: Final[str] = "CHANGE_THIS_TO_RANDOM_SECRET"
+ALGORITHM: Final[str] = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES: Final[int] = 60 * 24 * 7
+
+
+# =========================
+# パスワードハッシュ
+# =========================
+
+pwd_context = CryptContext(
+    schemes=["pbkdf2_sha256"],
+    deprecated="auto",
+)
+
+
+def hash_password(password: str) -> str:
+    """
+    パスワードを安全にハッシュ化
+
+    Args:
+        password: 平文パスワード
+
+    Returns:
+        ハッシュ文字列
+    """
+    if not password:
+        raise ValueError("Password cannot be empty")
+
+    return pwd_context.hash(password)
+
+
+def verify_password(password: str, password_hash: str) -> bool:
+    """
+    パスワード検証
+
+    Args:
+        password: 平文
+        password_hash: 保存済みハッシュ
+
+    Returns:
+        一致すればTrue
+    """
+    if not password or not password_hash:
+        return False
+
+    try:
+        return pwd_context.verify(password, password_hash)
+    except Exception:
+        return False
+
+
+# =========================
+# JWT Payload 型
+# =========================
+
+class TokenPayload(TypedDict):
+    sub: str
+    exp: datetime
+    iat: datetime
+    type: str
+
+
+# =========================
+# JWT作成
+# =========================
+
+def create_access_token(subject: str) -> str:
+    """
+    JWTアクセストークン生成
+
+    Args:
+        subject: user_id（文字列）
+
+    Returns:
+        JWT文字列
+    """
+
+    if not subject:
+        raise ValueError("Subject cannot be empty")
+
+    now = datetime.now(timezone.utc)
+
+    payload: TokenPayload = {
+        "sub": subject,
+        "exp": now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        "iat": now,
+        "type": "access",
+    }
+
+    token: str = jwt.encode(
+        payload,
+        SECRET_KEY,
+        algorithm=ALGORITHM,
+    )
+
+    return token
+
+
+# =========================
+# JWT検証
+# =========================
+
+def decode_access_token(token: str) -> Optional[str]:
+    """
+    JWT検証
+
+    Args:
+        token: JWT文字列
+
+    Returns:
+        user_id (sub) または None
+    """
+
+    if not token:
+        return None
+
+    try:
+        payload: Dict[str, Any] = jwt.decode(
+            token,
+            key=SECRET_KEY,
+            algorithms=[ALGORITHM],
+        )
+
+        # 型安全チェック
+        if not isinstance(payload, dict):
+            return None
+
+        subject = payload.get("sub")
+
+        if not isinstance(subject, str):
+            return None
+
+        return subject
+
+    except JWTError:
+        # 無効署名・期限切れなど
+        return None
+
+    except Exception:
+        return None
