@@ -1,14 +1,12 @@
+// apps/web/src/_components/AuthGuard.tsx
 "use client";
 
+import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getAccessToken } from "@/lib/api";
 
-/**
- * AuthGate should never be used on /login itself.
- * It checks token ONLY in useEffect to avoid SSR/prerender crashes.
- */
-export default function AuthGate({ children }: { children: React.ReactNode }) {
+export default function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
@@ -22,21 +20,14 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    try {
-      const token = getAccessToken();
-
-      if (token) {
-        setAuthed(true);
-      } else {
-        setAuthed(false);
-        router.replace("/login");
-      }
-    } catch {
+    const token = getAccessToken();
+    if (token) {
+      setAuthed(true);
+    } else {
       setAuthed(false);
       router.replace("/login");
-    } finally {
-      setReady(true);
     }
+    setReady(true);
   }, [pathname, router]);
 
   if (!ready) return <p style={{ padding: 16 }}>Checking auth...</p>;
