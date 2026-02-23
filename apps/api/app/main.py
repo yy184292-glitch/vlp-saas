@@ -90,6 +90,25 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# ============================================================
+# Ensure cars.updated_at column exists (safe for prod)
+# ============================================================
+def ensure_updated_at_column():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("""
+                ALTER TABLE cars
+                ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ
+                DEFAULT NOW()
+            """))
+            conn.commit()
+            logger.info("Ensured cars.updated_at column exists.")
+    except Exception:
+        logger.exception("Failed to ensure updated_at column.")
+
+ensure_updated_at_column()
+
+
 
 # ============================================================
 # Routes
