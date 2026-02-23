@@ -1,9 +1,8 @@
-// apps/web/app/_components/AppShell.tsx
 "use client";
 
 import type { ReactNode } from "react";
 import ClientNav from "./ClientNav";
-import AuthGate from "../../src/_components/AuthGuard"; // ← ここがポイント
+import AuthGate from "./AuthGate";
 
 export default function AppShell({ children }: { children: ReactNode }) {
   return (
