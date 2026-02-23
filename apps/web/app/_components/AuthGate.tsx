@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-
-const TOKEN_KEY = "vlp_token";
+import { getAccessToken } from "@/lib/api";
 
 /**
  * AuthGate should never be used on /login itself.
@@ -17,7 +16,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
   const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    // Defensive: do not gate /login
     if (pathname === "/login") {
       setAuthed(true);
       setReady(true);
@@ -25,7 +23,8 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const token = window.localStorage.getItem(TOKEN_KEY);
+      const token = getAccessToken();
+
       if (token) {
         setAuthed(true);
       } else {
@@ -33,7 +32,6 @@ export default function AuthGate({ children }: { children: React.ReactNode }) {
         router.replace("/login");
       }
     } catch {
-      // If storage is blocked, treat as not authenticated
       setAuthed(false);
       router.replace("/login");
     } finally {
