@@ -4,6 +4,11 @@
  *
  * Pages/components import from here:
  *   import { apiFetch, login, listCars, createCar, deleteCar, type Car } from "@/lib/api";
+ *
+ * This file provides:
+ * - apiFetch: typed fetch wrapper with sensible defaults
+ * - login: OAuth2PasswordRequestForm-style login (stores token to localStorage)
+ * - Re-exports for cars API helpers/types
  */
 
 export type ApiErrorPayload = unknown;
@@ -17,6 +22,39 @@ export class ApiError extends Error {
     this.name = "ApiError";
     this.status = status;
     this.payload = payload;
+  }
+}
+
+const TOKEN_STORAGE_KEY = "vlp_access_token";
+
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
+export function getAccessToken(): string | null {
+  if (!isBrowser()) return null;
+  try {
+    return window.localStorage.getItem(TOKEN_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setAccessToken(token: string): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(TOKEN_STORAGE_KEY, token);
+  } catch {
+    // Ignore storage failures (private mode, etc.)
+  }
+}
+
+export function clearAccessToken(): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.removeItem(TOKEN_STORAGE_KEY);
+  } catch {
+    // Ignore
   }
 }
 
@@ -68,6 +106,7 @@ async function safeReadPayload(res: Response): Promise<unknown> {
 /**
  * Typed fetch wrapper.
  * - Adds base URL and `/api/v1` prefix by default
+ * - Adds Authorization header if a token exists
  * - Throws ApiError on non-2xx with parsed payload when possible
  */
 export async function apiFetch<T>(
@@ -76,6 +115,11 @@ export async function apiFetch<T>(
 ): Promise<T> {
   const url = resolveUrl(path);
   const headers = new Headers(init.headers);
+
+  const token = getAccessToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
 
   const res = await fetch(url, {
     ...init,
@@ -112,11 +156,12 @@ export type LoginResponse = {
 /**
  * Authenticate user and return an access token.
  *
- * Supports BOTH call styles to minimize code changes:
+ * Supports BOTH call styles:
  *   await login(email, password)
  *   await login({ email, password })
  *
- * Uses x-www-form-urlencoded to match FastAPI's OAuth2PasswordRequestForm.
+ * Side-effect:
+ * - Stores access token to localStorage (TOKEN_STORAGE_KEY).
  */
 export function login(email: string, password: string): Promise<LoginResponse>;
 export function login(input: LoginInput): Promise<LoginResponse>;
@@ -139,13 +184,16 @@ export async function login(
     password,
   }).toString();
 
-  return apiFetch<LoginResponse>(LOGIN_PATH, {
+  const resp = await apiFetch<LoginResponse>(LOGIN_PATH, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",
     },
     body,
   });
+
+  if (resp?.access_token) setAccessToken(resp.access_token);
+  return resp;
 }
 
 // Cars API re-exports (keep call sites stable)
