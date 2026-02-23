@@ -1,4 +1,3 @@
-// apps/web/src/_components/AuthGuard.tsx
 "use client";
 
 import type { ReactNode } from "react";
