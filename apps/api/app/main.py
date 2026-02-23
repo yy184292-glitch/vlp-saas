@@ -1,3 +1,8 @@
+from __future__ import annotations
+
+import os
+import logging
+
 from fastapi import FastAPI, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
@@ -12,23 +17,50 @@ from app.routes.users import router as users_router
 from app.routes.cars import router as cars_router
 from app.routes.shaken import router as shaken_router
 
-# DBテーブル作成（開発用）
-Base.metadata.create_all(bind=engine)
+logger = logging.getLogger(__name__)
 
-# FastAPI作成
+# ============================================================
+# DB table creation (DEV ONLY)
+# - In production, prefer Alembic migrations.
+# - Guarded so a transient DB outage doesn't prevent app startup.
+# ============================================================
+RUN_CREATE_ALL = os.getenv("RUN_CREATE_ALL", "0") == "1"
+if RUN_CREATE_ALL:
+    try:
+        Base.metadata.create_all(bind=engine)
+        logger.info("DB tables ensured via create_all (RUN_CREATE_ALL=1).")
+    except Exception:
+        logger.exception("Base.metadata.create_all failed; continuing startup without it.")
+
+# FastAPI app
 app = FastAPI(
     title="VLP SaaS API",
     version="1.0.0",
 )
 
-# CORS設定
+# ============================================================
+# CORS
+# - Include localhost for dev and FRONTEND_URL for production.
+# - Remove empty origins to avoid framework edge cases.
+# ============================================================
+origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
+frontend_url = getattr(settings, "FRONTEND_URL", None)
+if isinstance(frontend_url, str) and frontend_url.strip():
+    origins.append(frontend_url.strip())
+
+# You can also explicitly allow your Render web URL by env if you want:
+# origins.append("https://vlp-web.onrender.com")
+
+# Deduplicate + drop empties
+allow_origins = sorted({o for o in origins if o})
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        settings.FRONTEND_URL if hasattr(settings, "FRONTEND_URL") else "",
-    ],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -56,7 +88,6 @@ def root():
 def health_check():
     """Health check endpoint for Render / uptime monitoring."""
     try:
-        # DB接続チェック
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
 
@@ -75,7 +106,7 @@ def health_check():
         }
 
 
-# router登録
+# Routers
 app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(cars_router, prefix=API_PREFIX)
