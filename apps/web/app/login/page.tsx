@@ -1,106 +1,144 @@
 "use client";
+
+// Prevent build-time prerender errors on platforms like Render
 export const dynamic = "force-dynamic";
 
-import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
-import { login } from "@/lib/api";
+type LoginResponse = {
+  access_token: string;
+  token_type?: string;
+};
+
+const TOKEN_KEY = "vlp_token";
 
 export default function LoginPage() {
   const router = useRouter();
-  const params = useSearchParams();
-
-  const nextPath = params.get("next") || "/cars";
-
-  const [email, setEmail] = useState("user@example.com");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
+  // If already logged in, go to /cars
+  useEffect(() => {
+    try {
+      const token = window.localStorage.getItem(TOKEN_KEY);
+      if (token) router.replace("/cars");
+    } catch {
+      // ignore (storage may be blocked in some environments)
+    }
+  }, [router]);
+
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
+    setBusy(true);
 
     try {
-      await login(email, password);
-      router.push(nextPath);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const base = process.env.NEXT_PUBLIC_API_BASE_URL;
+      if (!base) throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
+
+      const res = await fetch(`${base}/api/v1/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const text = await res.text();
+      const data = text ? safeJson(text) : null;
+
+      if (!res.ok) {
+        const msg =
+          (data as any)?.detail ||
+          (data as any)?.message ||
+          `Login failed (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
+
+      const lr = data as LoginResponse;
+      if (!lr?.access_token) throw new Error("Login response missing access_token");
+
+      try {
+        window.localStorage.setItem(TOKEN_KEY, lr.access_token);
+      } catch {
+        // ignore
+      }
+
+      router.push("/cars");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoading(false);
+      setBusy(false);
     }
   }
 
   return (
-    <main style={{ margin: "48px auto", padding: 16 }}>
-      <div
-        style={{
-          maxWidth: 520,
-          margin: "0 auto",
-          background: "#fff",
-          border: "1px solid #eee",
-          borderRadius: 16,
-          padding: 20,
-        }}
-      >
-        <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 12 }}>Login</h1>
+    <main style={{ margin: "48px auto", padding: 16, maxWidth: 420 }}>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Login</h1>
 
-        {error && (
-          <div
-            style={{
-              border: "1px solid #fca5a5",
-              background: "#fee2e2",
-              padding: 12,
-              borderRadius: 10,
-              marginBottom: 12,
-            }}
-          >
-            {error}
-          </div>
-        )}
+      {error && (
+        <div
+          style={{
+            border: "1px solid #fca5a5",
+            background: "#fee2e2",
+            padding: 12,
+            borderRadius: 8,
+            marginBottom: 12,
+          }}
+        >
+          {error}
+        </div>
+      )}
 
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 12 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 600 }}>Email</span>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={loading}
-              autoComplete="email"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-            />
-          </label>
+      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Email</span>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={busy}
+            autoComplete="email"
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          />
+        </label>
 
-          <label style={{ display: "grid", gap: 6 }}>
-            <span style={{ fontWeight: 600 }}>Password</span>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={loading}
-              type="password"
-              autoComplete="current-password"
-              style={{ padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
-            />
-          </label>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Password</span>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy}
+            autoComplete="current-password"
+            type="password"
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          />
+        </label>
 
-          <button
-            type="submit"
-            disabled={loading || !email || !password}
-            style={{
-              padding: 10,
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              cursor: loading ? "not-allowed" : "pointer",
-              fontWeight: 800,
-            }}
-          >
-            {loading ? "Logging in..." : "Login"}
-          </button>
-        </form>
-      </div>
+        <button
+          type="submit"
+          disabled={busy || !email.trim() || !password}
+          style={{
+            padding: 10,
+            borderRadius: 8,
+            border: "1px solid #111",
+            background: "#111",
+            color: "#fff",
+            cursor: busy ? "not-allowed" : "pointer",
+            fontWeight: 700,
+          }}
+        >
+          {busy ? "Logging in..." : "Login"}
+        </button>
+      </form>
     </main>
   );
+}
+
+function safeJson(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
