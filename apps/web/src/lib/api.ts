@@ -109,8 +109,6 @@ export type LoginResponse = {
   token_type?: string;
 };
 
-type LoginArgs = [email: string, password: string] | [input: LoginInput];
-
 /**
  * Authenticate user and return an access token.
  *
@@ -122,11 +120,15 @@ type LoginArgs = [email: string, password: string] | [input: LoginInput];
  */
 export function login(email: string, password: string): Promise<LoginResponse>;
 export function login(input: LoginInput): Promise<LoginResponse>;
-export async function login(...args: LoginArgs): Promise<LoginResponse> {
-  const { email, password } =
-    typeof args[0] === "string"
-      ? { email: args[0], password: args[1] }
-      : { email: args[0].email, password: args[0].password };
+export async function login(
+  arg1: string | LoginInput,
+  arg2?: string
+): Promise<LoginResponse> {
+  const email = typeof arg1 === "string" ? arg1 : arg1.email;
+  const password = typeof arg1 === "string" ? arg2 : arg1.password;
+
+  if (!email) throw new Error("login: email is required");
+  if (!password) throw new Error("login: password is required");
 
   // If your backend uses a different path, change here:
   const LOGIN_PATH = "/auth/login";
