@@ -38,3 +38,21 @@ export async function apiFetch<T>(
   }
   return (await res.text()) as unknown as T;
 }
+
+// apps/web/src/lib/api.ts
+// Minimal fix: re-export cars APIs so pages importing from "@/lib/api" keep working.
+// Keep your existing exports (e.g., apiFetch) and ADD the lines below.
+//
+// If this file already exists, merge these exports at the bottom.
+
+export { apiFetch } from "@/lib/apiFetch"; // <-- If your apiFetch lives elsewhere, adjust this path.
+
+// Cars API re-exports
+export {
+  listCars,
+  getCar,
+  createCar,
+  deleteCar,
+  type Car,
+  type CreateCarInput,
+} from "@/features/cars/carsApi";
