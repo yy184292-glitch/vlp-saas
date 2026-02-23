@@ -208,3 +208,27 @@ export async function deleteCar(id: string): Promise<void> {
   if (!id) return;
   await apiFetch<void>(`/api/v1/cars/${encodeURIComponent(id)}`, { method: "DELETE", auth: true });
 }
+
+export type LoginResponse = {
+  access_token: string;
+  token_type?: string;
+};
+
+export async function login(email: string, password: string): Promise<LoginResponse> {
+  // ログインは token 無しで叩くので auth: false
+  const data = await apiFetch<LoginResponse>("/api/v1/auth/login", {
+    method: "POST",
+    auth: false,
+    body: { email, password },
+  });
+
+  if (!data?.access_token) {
+    throw new ApiError({
+      status: 500,
+      url: buildUrl("/api/v1/auth/login"),
+      message: "Login response missing access_token",
+      detail: data,
+    });
+  }
+  return data;
+}
