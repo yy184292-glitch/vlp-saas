@@ -3,31 +3,45 @@ import { apiFetch } from "@/lib/api";
 
 /**
  * Car entity type used by the UI.
- * NOTE: UI expects `maker` (not `make`).
+ * The UI currently mixes `make` and `maker` in different places.
+ * To minimize changes, we support both at the type level and normalize on write.
  */
 export type Car = {
   id: string;
-  maker: string;
+  // Prefer `maker` (UI table uses this), but allow `make` for legacy usage.
+  maker?: string;
+  make?: string;
   model: string;
   year?: number;
 };
 
 /**
  * Payload for creating a car.
- * Extend fields as your backend schema grows.
+ * Accept both `make` and `maker` to avoid touching call sites.
+ * We normalize to `maker` before sending to the API.
  */
-export type CreateCarInput = Omit<Car, "id">;
+export type CreateCarInput = {
+  maker?: string;
+  make?: string;
+  model: string;
+  year?: number;
+};
+
+function normalizeCreateCarInput(input: CreateCarInput): Omit<Car, "id"> {
+  const maker = (input.maker ?? input.make ?? "").trim();
+  return {
+    maker,
+    model: input.model,
+    year: input.year,
+  };
+}
 
 export async function listCars(): Promise<Car[]> {
-  return apiFetch<Car[]>("/cars", {
-    method: "GET",
-  });
+  return apiFetch<Car[]>("/cars", { method: "GET" });
 }
 
 export async function getCar(id: string): Promise<Car> {
-  return apiFetch<Car>(`/cars/${encodeURIComponent(id)}`, {
-    method: "GET",
-  });
+  return apiFetch<Car>(`/cars/${encodeURIComponent(id)}`, { method: "GET" });
 }
 
 /**
@@ -36,12 +50,14 @@ export async function getCar(id: string): Promise<Car> {
  *   import { createCar } from "@/features/cars/carsApi";
  */
 export async function createCar(input: CreateCarInput): Promise<Car> {
+  const payload = normalizeCreateCarInput(input);
+
   return apiFetch<Car>("/cars", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(input),
+    body: JSON.stringify(payload),
   });
 }
 
