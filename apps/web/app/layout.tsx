@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import ClientNav from "./_components/ClientNav";
+import AppShell from "./_components/AppShell";
 
 export const metadata = {
   title: "VLP SaaS",
@@ -10,8 +10,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en">
       <body style={{ margin: 0, color: "#111", background: "#fafafa" }}>
-        <ClientNav />
-        <div style={{ maxWidth: 960, margin: "0 auto" }}>{children}</div>
+        <AppShell>{children}</AppShell>
       </body>
     </html>
   );
