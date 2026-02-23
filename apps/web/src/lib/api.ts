@@ -5,9 +5,6 @@
  * - login: tries JSON first, then falls back to form-urlencoded on 422
  */
 
-import { listCars, getCar, createCar, deleteCar } from "../features/cars/carsApi";
-import type { Car, CreateCarInput } from "../features/cars/carsApi";
-
 export type ApiErrorPayload = unknown;
 
 export class ApiError extends Error {
@@ -158,7 +155,14 @@ export async function login(arg1: string | LoginInput, arg2?: string): Promise<L
   return resp;
 }
 
-
 // Cars API re-exports (call sites keep importing from "@/lib/api")
-export { listCars, getCar, createCar, deleteCar };
-export type { Car, CreateCarInput };
+// IMPORTANT: Avoid "@/..." path alias here to prevent build-time module resolution failures on Render.
+// Use a relative path that matches the repo structure:
+// apps/web/src/lib/api.ts -> apps/web/src/features/cars/carsApi.ts
+export {
+  listCars,
+  getCar,
+  createCar,
+  deleteCar,
+} from "../features/cars/carsApi";
+export type { Car, CreateCarInput } from "../features/cars/carsApi";
