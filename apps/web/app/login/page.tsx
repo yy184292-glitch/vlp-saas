@@ -5,13 +5,12 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { getAccessToken, setAccessToken } from "@/lib/api";
 
 type LoginResponse = {
   access_token: string;
   token_type?: string;
 };
-
-const TOKEN_KEY = "vlp_token";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -22,12 +21,8 @@ export default function LoginPage() {
 
   // If already logged in, go to /cars
   useEffect(() => {
-    try {
-      const token = window.localStorage.getItem(TOKEN_KEY);
-      if (token) router.replace("/cars");
-    } catch {
-      // ignore (storage may be blocked in some environments)
-    }
+    const token = getAccessToken();
+    if (token) router.replace("/cars");
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -59,13 +54,8 @@ export default function LoginPage() {
       const lr = data as LoginResponse;
       if (!lr?.access_token) throw new Error("Login response missing access_token");
 
-      try {
-        window.localStorage.setItem(TOKEN_KEY, lr.access_token);
-      } catch {
-        // ignore
-      }
-
-      router.push("/cars");
+      setAccessToken(lr.access_token);
+      router.replace("/cars");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
