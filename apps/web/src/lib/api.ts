@@ -116,6 +116,10 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  return request<T>(path, init);
+}
+
 /** Optional: login helper (if you want to centralize it) */
 export async function login(email: string, password: string): Promise<void> {
   const data = await request<LoginResponse>("/api/v1/auth/login", {
