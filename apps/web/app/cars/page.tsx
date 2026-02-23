@@ -179,7 +179,7 @@ export default function CarsPage() {
               {cars.map((car) => (
                 <tr key={car.id}>
                   <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>
-                    {car.maker ?? car.make ?? ""}
+                     {String(car.maker ?? car.make ?? "")}
                   </td>
                   <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>{car.model}</td>
                   <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>{car.year ?? ""}</td>
