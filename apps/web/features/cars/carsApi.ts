@@ -1,10 +1,14 @@
 // apps/web/features/cars/carsApi.ts
-import { apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/apiFetch";
 
+/**
+ * Car entity type used by the UI.
+ * NOTE: UI expects `maker` (not `make`).
+ */
 export type Car = {
   id: string;
-  make?: string;
-  model?: string;
+  maker: string;
+  model: string;
   year?: number;
 };
 
@@ -12,9 +16,7 @@ export type Car = {
  * Payload for creating a car.
  * Extend fields as your backend schema grows.
  */
-export type CreateCarInput = Omit<Car, "id"> & {
-  // If your API accepts additional fields, add them here.
-};
+export type CreateCarInput = Omit<Car, "id">;
 
 export async function listCars(): Promise<Car[]> {
   return apiFetch<Car[]>("/cars", {
