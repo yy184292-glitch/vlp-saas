@@ -1,31 +1,48 @@
 "use client";
 
-import { ReactNode, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getAccessToken } from "@/lib/api";
 
-export default function AuthGate({ children }: { children: ReactNode }) {
+const TOKEN_KEY = "vlp_token";
+
+/**
+ * AuthGate should never be used on /login itself.
+ * It checks token ONLY in useEffect to avoid SSR/prerender crashes.
+ */
+export default function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
+
   const [ready, setReady] = useState(false);
+  const [authed, setAuthed] = useState(false);
 
   useEffect(() => {
-    const token = getAccessToken();
-    if (!token) {
-      const next = encodeURIComponent(pathname || "/cars");
-      router.replace(`/login?next=${next}`);
+    // Defensive: do not gate /login
+    if (pathname === "/login") {
+      setAuthed(true);
+      setReady(true);
       return;
     }
-    setReady(true);
-  }, [router, pathname]);
 
-  if (!ready) {
-    return (
-      <main style={{ maxWidth: 960, margin: "48px auto", padding: 16 }}>
-        <p>Checking session…</p>
-      </main>
-    );
-  }
+    try {
+      const token = window.localStorage.getItem(TOKEN_KEY);
+      if (token) {
+        setAuthed(true);
+      } else {
+        setAuthed(false);
+        router.replace("/login");
+      }
+    } catch {
+      // If storage is blocked, treat as not authenticated
+      setAuthed(false);
+      router.replace("/login");
+    } finally {
+      setReady(true);
+    }
+  }, [pathname, router]);
+
+  if (!ready) return <p style={{ padding: 16 }}>Checking auth...</p>;
+  if (!authed) return null;
 
   return <>{children}</>;
 }
