@@ -4,11 +4,6 @@
  *
  * Pages/components import from here:
  *   import { apiFetch, login, listCars, createCar, deleteCar, type Car } from "@/lib/api";
- *
- * This file provides:
- * - apiFetch: typed fetch wrapper with sensible defaults
- * - login: OAuth2PasswordRequestForm-style login
- * - Re-exports for cars API helpers/types
  */
 
 export type ApiErrorPayload = unknown;
@@ -54,7 +49,7 @@ function resolveUrl(path: string): string {
   return `${base}${p}`;
 }
 
-async function safeReadJson(res: Response): Promise<unknown> {
+async function safeReadPayload(res: Response): Promise<unknown> {
   const ct = res.headers.get("content-type") ?? "";
   if (ct.includes("application/json")) {
     try {
@@ -63,7 +58,6 @@ async function safeReadJson(res: Response): Promise<unknown> {
       return null;
     }
   }
-  // Try anyway for APIs that forget headers
   try {
     return await res.json();
   } catch {
@@ -81,9 +75,6 @@ export async function apiFetch<T>(
   init: RequestInit = {}
 ): Promise<T> {
   const url = resolveUrl(path);
-
-  // If you store tokens in localStorage/cookies, add them here.
-  // This keeps it minimal and safe by not assuming storage strategy.
   const headers = new Headers(init.headers);
 
   const res = await fetch(url, {
@@ -92,20 +83,22 @@ export async function apiFetch<T>(
   });
 
   if (!res.ok) {
-    const payload = await safeReadJson(res);
-    throw new ApiError(`API request failed: ${res.status} ${res.statusText}`, res.status, payload);
+    const payload = await safeReadPayload(res);
+    throw new ApiError(
+      `API request failed: ${res.status} ${res.statusText}`,
+      res.status,
+      payload
+    );
   }
 
-  // 204 No Content
   if (res.status === 204) return undefined as unknown as T;
 
-  const payload = await safeReadJson(res);
+  const payload = await safeReadPayload(res);
   return payload as T;
 }
 
 /** Login request payload used by the UI. */
 export type LoginInput = {
-  /** Email (or username). FastAPI OAuth2 flow expects `username`. */
   email: string;
   password: string;
 };
@@ -116,17 +109,32 @@ export type LoginResponse = {
   token_type?: string;
 };
 
+type LoginArgs = [email: string, password: string] | [input: LoginInput];
+
 /**
  * Authenticate user and return an access token.
+ *
+ * Supports BOTH call styles to minimize code changes:
+ *   await login(email, password)
+ *   await login({ email, password })
+ *
  * Uses x-www-form-urlencoded to match FastAPI's OAuth2PasswordRequestForm.
  */
-export async function login(input: LoginInput): Promise<LoginResponse> {
+export function login(email: string, password: string): Promise<LoginResponse>;
+export function login(input: LoginInput): Promise<LoginResponse>;
+export async function login(...args: LoginArgs): Promise<LoginResponse> {
+  const { email, password } =
+    typeof args[0] === "string"
+      ? { email: args[0], password: args[1] }
+      : { email: args[0].email, password: args[0].password };
+
   // If your backend uses a different path, change here:
   const LOGIN_PATH = "/auth/login";
 
   const body = new URLSearchParams({
-    username: input.email,
-    password: input.password,
+    // FastAPI OAuth2PasswordRequestForm expects `username` and `password`
+    username: email,
+    password,
   }).toString();
 
   return apiFetch<LoginResponse>(LOGIN_PATH, {
