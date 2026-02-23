@@ -189,7 +189,7 @@ export default function CarsPage() {
                   </td>
                   <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>
                     <button
-                      onClick={() => onDelete(String(car.id))}
+                      onClick={() => onDelete(car.id)}
                       disabled={busy}
                       style={{
                         padding: "6px 10px",
