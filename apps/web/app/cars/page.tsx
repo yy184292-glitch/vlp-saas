@@ -63,7 +63,7 @@ export default function CarsPage() {
     setBusy(true);
     try {
       await deleteCar(id);
-      setCars((prev) => prev.filter((c) => c.id !== id));
+      setCars((prev) => prev.filter((c) => String(c.id) !== id));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -177,15 +177,19 @@ export default function CarsPage() {
             </thead>
             <tbody>
               {cars.map((car) => (
-                <tr key={car.id}>
+                <tr key={String(car.id)}>
                   <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>
-                     {String(car.maker ?? car.make ?? "")}
+                    {String((car as any).maker ?? (car as any).make ?? "")}
                   </td>
-                  <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>{car.model}</td>
-                  <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>{car.year ?? ""}</td>
+                  <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>
+                    {String((car as any).model ?? "")}
+                  </td>
+                  <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>
+                    {String((car as any).year ?? "")}
+                  </td>
                   <td style={{ borderBottom: "1px solid #f3f4f6", padding: 10 }}>
                     <button
-                      onClick={() => onDelete(car.id)}
+                      onClick={() => onDelete(String(car.id))}
                       disabled={busy}
                       style={{
                         padding: "6px 10px",
