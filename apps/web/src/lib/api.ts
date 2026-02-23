@@ -7,7 +7,7 @@
  *
  * This file provides:
  * - apiFetch: typed fetch wrapper with sensible defaults
- * - login: OAuth2PasswordRequestForm-style login (stores token to localStorage)
+ * - login: login helper that stores token to localStorage and auto-adds Bearer on apiFetch
  * - Re-exports for cars API helpers/types
  */
 
@@ -153,6 +153,10 @@ export type LoginResponse = {
   token_type?: string;
 };
 
+function isApiError(e: unknown): e is ApiError {
+  return e instanceof ApiError && typeof e.status === "number";
+}
+
 /**
  * Authenticate user and return an access token.
  *
@@ -160,8 +164,9 @@ export type LoginResponse = {
  *   await login(email, password)
  *   await login({ email, password })
  *
- * Side-effect:
- * - Stores access token to localStorage (TOKEN_STORAGE_KEY).
+ * It tries JSON first (common for custom login endpoints),
+ * and falls back to x-www-form-urlencoded (FastAPI OAuth2PasswordRequestForm)
+ * when it receives 422.
  */
 export function login(email: string, password: string): Promise<LoginResponse>;
 export function login(input: LoginInput): Promise<LoginResponse>;
@@ -175,20 +180,31 @@ export async function login(
   if (!email) throw new Error("login: email is required");
   if (!password) throw new Error("login: password is required");
 
-  // If your backend uses a different path, change here:
   const LOGIN_PATH = "/auth/login";
 
+  // 1) Try JSON body: { email, password }
+  try {
+    const resp = await apiFetch<LoginResponse>(LOGIN_PATH, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, password }),
+    });
+    if (resp?.access_token) setAccessToken(resp.access_token);
+    return resp;
+  } catch (e) {
+    // 422 often means the server expected a different body format.
+    if (!isApiError(e) || e.status !== 422) throw e;
+  }
+
+  // 2) Fallback: form-encoded body (OAuth2PasswordRequestForm style)
   const body = new URLSearchParams({
-    // FastAPI OAuth2PasswordRequestForm expects `username` and `password`
     username: email,
     password,
   }).toString();
 
   const resp = await apiFetch<LoginResponse>(LOGIN_PATH, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body,
   });
 
