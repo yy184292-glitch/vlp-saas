@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken, setAccessToken } from "@/lib/api";
+import { getAccessToken, setAccessToken, login } from "@/lib/api";
 
 type LoginResponse = {
   access_token: string;
@@ -26,9 +26,9 @@ export default function LoginPage() {
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError(null);
-    setBusy(true);
+    const lr = await login(email, password);
+    setAccessToken(lr.access_token);
+    router.replace("/cars");
 
     try {
       const base = process.env.NEXT_PUBLIC_API_BASE_URL;
