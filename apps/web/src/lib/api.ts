@@ -1,14 +1,15 @@
 /**
- * Minimal, SSR-safe API client for VLP Web.
- * - Never touches window/localStorage at module top-level.
- * - Adds Authorization: Bearer <token> when available.
- * - Works in Next.js App Router client components.
+ * VLP Web API client (Next.js App Router safe)
+ * - No window/localStorage access at module top-level (build/prerender safe)
+ * - Token helpers for ClientNav/AuthGate
+ * - Adds Authorization: Bearer <token> for authenticated API calls
  */
 
 export type Car = {
   id: string | number;
+  // Backend/legacy field name variations are kept as unknown for now.
   maker?: unknown;
-  make?: unknown; // legacy
+  make?: unknown;
   model?: unknown;
   year?: unknown;
 };
@@ -19,10 +20,20 @@ export type CreateCarInput = {
   year?: number;
 };
 
+type LoginResponse = {
+  access_token: string;
+  token_type?: string;
+};
+
 const TOKEN_KEY = "vlp_token";
 
-function getToken(): string | null {
-  if (typeof window === "undefined") return null;
+function isBrowser(): boolean {
+  return typeof window !== "undefined";
+}
+
+/** Read access token from localStorage (client-only). */
+export function getAccessToken(): string | null {
+  if (!isBrowser()) return null;
   try {
     return window.localStorage.getItem(TOKEN_KEY);
   } catch {
@@ -30,25 +41,53 @@ function getToken(): string | null {
   }
 }
 
-function buildHeaders(extra?: HeadersInit): HeadersInit {
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
+/** Save access token to localStorage (client-only). */
+export function setAccessToken(token: string): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.setItem(TOKEN_KEY, token);
+  } catch {
+    // ignore
+  }
+}
 
-  const token = getToken();
-  if (token) headers.Authorization = `Bearer ${token}`;
-
-  return { ...headers, ...(extra as any) };
+/** Remove access token from localStorage (client-only). */
+export function clearAccessToken(): void {
+  if (!isBrowser()) return;
+  try {
+    window.localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 function apiBaseUrl(): string {
   const base = process.env.NEXT_PUBLIC_API_BASE_URL;
   if (!base) {
-    // Throwing here is OK because these functions are called at runtime in the browser.
-    // If you prefer softer failure, replace with console.warn and return "".
+    // Called at runtime from client components; fail loudly so misconfig is obvious.
     throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
   }
   return base.replace(/\/$/, "");
+}
+
+function buildHeaders(extra?: HeadersInit): HeadersInit {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const token = getAccessToken();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  // Merge extras (caller can override if needed)
+  return { ...headers, ...(extra as any) };
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -77,12 +116,14 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
-function safeJson(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
+/** Optional: login helper (if you want to centralize it) */
+export async function login(email: string, password: string): Promise<void> {
+  const data = await request<LoginResponse>("/api/v1/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+  if (!data?.access_token) throw new Error("Login response missing access_token");
+  setAccessToken(data.access_token);
 }
 
 // ---------------------------
