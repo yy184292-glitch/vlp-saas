@@ -155,14 +155,40 @@ export async function login(arg1: string | LoginInput, arg2?: string): Promise<L
   return resp;
 }
 
-// Cars API re-exports (call sites keep importing from "@/lib/api")
-// IMPORTANT: Avoid "@/..." path alias here to prevent build-time module resolution failures on Render.
-// Use a relative path that matches the repo structure:
-// apps/web/src/lib/api.ts -> apps/web/src/features/cars/carsApi.ts
-export {
-  listCars,
-  getCar,
-  createCar,
-  deleteCar,
-} from "../features/cars/carsApi";
-export type { Car, CreateCarInput } from "../features/cars/carsApi";
+// -----------------------------------------------------------------------------
+// Cars API (kept inside this module to avoid build-time module resolution / cycles)
+// -----------------------------------------------------------------------------
+
+export type Car = {
+  id: string | number;
+  [key: string]: unknown;
+};
+
+export type CreateCarInput = Record<string, unknown>;
+
+/** GET /cars */
+export async function listCars(): Promise<Car[]> {
+  return await apiFetch<Car[]>("/cars", { method: "GET" });
+}
+
+/** GET /cars/{id} */
+export async function getCar(id: string | number): Promise<Car> {
+  const safeId = encodeURIComponent(String(id));
+  return await apiFetch<Car>(`/cars/${safeId}`, { method: "GET" });
+}
+
+/** POST /cars */
+export async function createCar(input: CreateCarInput): Promise<Car> {
+  return await apiFetch<Car>("/cars", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+/** DELETE /cars/{id} */
+export async function deleteCar(id: string | number): Promise<void> {
+  const safeId = encodeURIComponent(String(id));
+  await apiFetch<void>(`/cars/${safeId}`, { method: "DELETE" });
+}
+
