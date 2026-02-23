@@ -103,9 +103,9 @@ export default function CarsPage() {
           <tbody>
             {cars.map((car) => (
               <tr key={car.id}>
-                <td>{car.maker}</td>
-                <td>{car.model}</td>
-                <td>{car.year}</td>
+                <td>{String(car.maker ?? "")}</td>
+                <td>{String(car.model ?? "")}</td>
+                <td>{String(car.year ?? "")}</td>
                 <td>
                   <button onClick={() => handleDelete(car.id)}>Delete</button>
                 </td>
