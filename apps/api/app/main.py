@@ -12,6 +12,22 @@ from app.core.settings import settings
 from app.db import engine
 from app.models.base import Base
 
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
+import traceback
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    traceback.print_exc()
+    return JSONResponse(status_code=500, content={"detail": "Internal Server Error"})
+
+
+
 from app.routes.auth import router as auth_router
 from app.routes.users import router as users_router
 from app.routes.cars import router as cars_router
