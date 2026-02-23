@@ -7,11 +7,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { getAccessToken, setAccessToken, login } from "@/lib/api";
 
-type LoginResponse = {
-  access_token: string;
-  token_type?: string;
-};
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -26,38 +21,22 @@ export default function LoginPage() {
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
-    const lr = await login(email, password);
-    setAccessToken(lr.access_token);
-    router.replace("/cars");
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
 
     try {
-      const base = process.env.NEXT_PUBLIC_API_BASE_URL;
-      if (!base) throw new Error("NEXT_PUBLIC_API_BASE_URL is not set");
+      const lr = await login(email, password);
+      setAccessToken(lr.access_token);
 
-      const res = await fetch(`${base}/api/v1/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-      });
-
-      const text = await res.text();
-      const data = text ? safeJson(text) : null;
-
-      if (!res.ok) {
-        const msg =
-          (data as any)?.detail ||
-          (data as any)?.message ||
-          `Login failed (HTTP ${res.status})`;
-        throw new Error(msg);
+      // 永続的な堅牢性: 保存できない環境は黙殺せず止める
+      if (!getAccessToken()) {
+        throw new Error("Token could not be saved. Please allow localStorage.");
       }
 
-      const lr = data as LoginResponse;
-      if (!lr?.access_token) throw new Error("Login response missing access_token");
-
-      setAccessToken(lr.access_token);
       router.replace("/cars");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
     } finally {
       setBusy(false);
     }
@@ -75,6 +54,7 @@ export default function LoginPage() {
             padding: 12,
             borderRadius: 8,
             marginBottom: 12,
+            whiteSpace: "pre-wrap",
           }}
         >
           {error}
@@ -123,12 +103,4 @@ export default function LoginPage() {
       </form>
     </main>
   );
-}
-
-function safeJson(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
-  }
 }
