@@ -30,15 +30,20 @@ if RUN_CREATE_ALL:
     except Exception:
         logger.exception("Base.metadata.create_all failed; continuing startup without it.")
 
+# NOTE:
+# - redirect_slashes=False disables Starlette's automatic 307 redirects between
+#   "/cars" and "/cars/". Those redirects frequently drop CORS headers and can
+#   surface as "No 'Access-Control-Allow-Origin' header" in browsers.
 app = FastAPI(
     title="VLP SaaS API",
     version="1.0.0",
+    redirect_slashes=False,
 )
 
 # ============================================================
 # CORS
-# Explicitly allow Render Web origin to stop browser CORS blocks.
 # ============================================================
+# Explicitly allow Render Web origin to stop browser CORS blocks.
 origins = {
     "http://localhost:3000",
     "http://127.0.0.1:3000",
