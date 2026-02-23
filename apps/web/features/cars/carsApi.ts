@@ -1,5 +1,5 @@
 // apps/web/features/cars/carsApi.ts
-import { apiFetch } from "@/lib/apiFetch";
+import { apiFetch } from "@/lib/api";
 
 /**
  * Car entity type used by the UI.
