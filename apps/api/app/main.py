@@ -38,18 +38,23 @@ API_PREFIX = "/api/v1"
 
 
 # ========================================
-# 完全版 Health Endpoint（本番対応）
+# Root Endpoint（ブラウザ/監視用）
+# ========================================
+@app.api_route("/", methods=["GET", "HEAD"], status_code=status.HTTP_200_OK)
+def root():
+    return {
+        "status": "ok",
+        "service": "vlp-api",
+        "version": "1.0.0",
+    }
+
+
+# ========================================
+# Health Endpoint（本番対応）
 # ========================================
 @app.api_route("/health", methods=["GET", "HEAD"], status_code=status.HTTP_200_OK)
 def health_check():
-    """
-    Health check endpoint for:
-    - Render health check
-    - uptime monitoring
-    - load balancer
-    - frontend connectivity check
-    """
-
+    """Health check endpoint for Render / uptime monitoring."""
     try:
         # DB接続チェック
         with engine.connect() as conn:
