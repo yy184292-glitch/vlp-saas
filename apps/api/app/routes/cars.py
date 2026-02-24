@@ -6,39 +6,24 @@ from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
-from fastapi import (
-    APIRouter,
-    Depends,
-    HTTPException,
-    status,
-    UploadFile,
-    File,
-    Form,
-)
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 
-# ✅ これに統一（自前 get_current_user は作らない）
-from app.api.deps import get_current_user
-
 from app.db.session import get_db
 from app.models.car import Car
 from app.models.user import User
 from app.schemas.car import CarCreate, CarRead, CarUpdate
-
-# OCR import
-from app.services.shaken_ocr import (
-    OcrConfig,
-    ShakenOcrError,
-    ocr_text_from_file_bytes,
-    parse_shaken_text_to_json,
-)
-
-# valuation import
 from app.services.valuation_service import calculate_valuation
+
+# ↓↓↓ ここはあなたの既存実装に合わせて調整が必要な場合あり ↓↓↓
+# 「decode_access_token」がある場所に合わせる。
+# もし app.core.security に無いなら、あなたのプロジェクトにある実際の場所へ変更。
+from app.core.security import decode_access_token
+# ↑↑↑
 
 router = APIRouter(prefix="/cars", tags=["cars"])
 security = HTTPBearer(auto_error=False)
@@ -46,78 +31,45 @@ security = HTTPBearer(auto_error=False)
 logger = logging.getLogger(__name__)
 
 
-# =========================================================
-# Internal helpers
-# =========================================================
-def _create_car_with_payload(
-    db: Session,
-    current_user: User,
-    payload: Dict[str, Any],
-) -> Car:
-    payload = dict(payload)
-
-    payload.pop("id", None)
-    payload.pop("created_at", None)
-    payload.pop("updated_at", None)
-
-    payload["user_id"] = current_user.id
-    payload["store_id"] = current_user.store_id
-
-    def _norm(v: Any) -> Any:
-        if v is None:
-            return None
-        if isinstance(v, str):
-            s = v.strip()
-            return s if s else None
-        return v
-
-    for k in list(payload.keys()):
-        payload[k] = _norm(payload[k])
-
-    if not payload.get("make"):
-        payload["make"] = payload.get("maker")
-
-    if not payload.get("make"):
-        payload["make"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
-
-    if not payload.get("maker"):
-        payload["maker"] = payload.get("make")
-
-    mapper = inspect(Car)
-    allowed_keys = {c.key for c in mapper.columns}
-
-    dropped_keys = sorted(set(payload.keys()) - allowed_keys)
-    if dropped_keys:
-        logger.info("Dropped unsupported car fields: %s", dropped_keys)
-
-    payload = {k: v for k, v in payload.items() if k in allowed_keys}
-
-    required = ["stock_no", "make", "model", "year"]
-    missing = [k for k in required if payload.get(k) in (None, "")]
-    if missing:
+# =========================
+# Current User Dependency (UUID対応)
+# =========================
+def get_current_user(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
+    db: Session = Depends(get_db),
+) -> User:
+    if credentials is None:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required fields: {missing}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication credentials",
+        )
+
+    token: str = credentials.credentials
+
+    # decode_access_token は「user_id(文字列)」を返す想定
+    user_id_str: Optional[str] = decode_access_token(token)
+    if not user_id_str:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
         )
 
     try:
-        car = Car(**payload)
-        db.add(car)
-        db.commit()
-        db.refresh(car)
-        return car
-    except IntegrityError as e:
-        db.rollback()
+        user_id = UUID(user_id_str)
+    except (TypeError, ValueError):
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Integrity error: {str(e.orig)}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token subject",
         )
-    except Exception as e:
-        db.rollback()
+
+    user: Optional[User] = db.get(User, user_id)
+    if user is None:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create car: {type(e).__name__}: {str(e)}",
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
         )
+
+    return user
 
 
 # =========================================================
