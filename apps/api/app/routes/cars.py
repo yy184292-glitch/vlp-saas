@@ -85,6 +85,7 @@ def get_current_user(
 # =========================================================
 # Internal helpers
 # =========================================================
+
 def _create_car_with_payload(
     db: Session,
     current_user: User,
@@ -92,28 +93,37 @@ def _create_car_with_payload(
 ) -> Car:
 
     payload = dict(payload)
+
+    # 必須：user_id と store_id を両方セット
     payload["user_id"] = current_user.id
+    payload["store_id"] = current_user.store_id
 
     try:
         car = Car(**payload)
+
         db.add(car)
         db.commit()
         db.refresh(car)
+
         return car
 
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
+
+        # エラー内容を出す（デバッグしやすく）
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Car already exists or unique constraint failed",
+            detail=f"Integrity error: {str(e.orig)}",
         )
 
-    except Exception:
+    except Exception as e:
         db.rollback()
+
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create car",
+            detail=f"Failed to create car: {str(e)}",
         )
+
 
 
 def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
