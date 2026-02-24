@@ -10,7 +10,6 @@ from sqlalchemy.orm import Session
 
 # ===== あなたのプロジェクト構成に合わせて import パスを調整してください =====
 from app.db.session import get_db
-from app.core.auth import get_current_user  # JWT認証: current_user を返す Depends
 from app.models.car import Car
 from app.models.user import User
 from app.services.valuation_service import calculate_valuation  # あなたが貼った calculate_valuation が入ってるモジュール
