@@ -101,7 +101,6 @@ def _create_car_with_payload(
 
     payload = dict(payload)
 
-    # --- always set tenant/user ---
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
@@ -117,20 +116,20 @@ def _create_car_with_payload(
     for k in list(payload.keys()):
         payload[k] = _norm(payload[k])
 
-    # --- schema -> DB mapping (強制) ---
-    # maker -> make
-    if not payload.get("make"):
-        payload["make"] = payload.get("maker")
+    # --- schema -> DB mapping（重要：make -> maker に寄せる）---
+    # schemaは内部的に make、UIは maker を送ることもある
+    if not payload.get("maker"):
+        payload["maker"] = payload.get("make")
 
-    # 念のため別候補（OCR/別名が将来入っても壊れない）
-    if not payload.get("make"):
-        payload["make"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
+    # 念のため別候補
+    if not payload.get("maker"):
+        payload["maker"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
 
-    # year_month -> first_registration (optional)
+    # year_month -> first_registration（Carにあるなら）
     if payload.get("year_month") and not payload.get("first_registration"):
         payload["first_registration"] = payload.get("year_month")
 
-    # inspection_expiry -> shaken_expiry (optional)
+    # inspection_expiry -> shaken_expiry（Carにあるなら）
     if payload.get("inspection_expiry") and not payload.get("shaken_expiry"):
         payload["shaken_expiry"] = payload.get("inspection_expiry")
 
@@ -144,8 +143,8 @@ def _create_car_with_payload(
 
     payload = {k: v for k, v in payload.items() if k in allowed_keys}
 
-    # --- required fields based on DB constraints ---
-    required = ["stock_no", "make", "model", "year"]
+    # --- required fields based on DB constraints（Carモデルに合わせる）---
+    required = ["stock_no", "maker", "model", "year"]
     missing = [k for k in required if payload.get(k) in (None, "")]
     if missing:
         raise HTTPException(
