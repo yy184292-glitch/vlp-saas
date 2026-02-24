@@ -228,18 +228,27 @@ def create_car(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    # pydantic v2
     payload = data.model_dump()
+
+    # --- 強制マッピング（これで make が必ず入る）---
+    # DBは make NOT NULL（Carモデル/DB側） :contentReference[oaicite:3]{index=3}
+    if not payload.get("make"):
+        # schemaは maker :contentReference[oaicite:4]{index=4}
+        payload["make"] = getattr(data, "maker", None)
+
+    # stock_no も念のため（payloadに無い事故を潰す）
+    if not payload.get("stock_no"):
+        payload["stock_no"] = getattr(data, "stock_no", None)
+
+    # 最終防衛：ここで make が無ければ400（原因が一発で分かる）
+    if not payload.get("make"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="maker (schema) was not received; cannot map to make (DB).",
+        )
+
     return _create_car_with_payload(db, current_user, payload)
-
-
-@router.get("", response_model=List[CarRead])
-def list_cars(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    stmt = select(Car).where(Car.user_id == current_user.id)
-    return list(db.scalars(stmt).all())
-
 
 # =========================================================
 # update
