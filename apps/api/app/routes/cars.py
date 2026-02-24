@@ -86,7 +86,12 @@ def get_current_user(
 # Internal helpers
 # =========================================================
 
+import logging
 from sqlalchemy.inspection import inspect
+from sqlalchemy.exc import IntegrityError
+from fastapi import HTTPException, status
+
+logger = logging.getLogger(__name__)
 
 def _create_car_with_payload(
     db: Session,
@@ -98,10 +103,33 @@ def _create_car_with_payload(
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
-    # Carモデルに存在するカラムだけ通す（余計なキーで500にならない）
+    # --- schema -> DB column mapping (互換レイヤ) ---
+    if "maker" in payload and "make" not in payload:
+        payload["make"] = payload.get("maker")
+
+    if "year_month" in payload and "first_registration" not in payload:
+        payload["first_registration"] = payload.get("year_month")
+
+    if "inspection_expiry" in payload and "shaken_expiry" not in payload:
+        payload["shaken_expiry"] = payload.get("inspection_expiry")
+
     mapper = inspect(Car)
     allowed_keys = {c.key for c in mapper.columns}
+
+    dropped_keys = sorted(set(payload.keys()) - allowed_keys)
+    if dropped_keys:
+        logger.info("Dropped unsupported car fields: %s", dropped_keys)
+
     payload = {k: v for k, v in payload.items() if k in allowed_keys}
+
+    # DBのNOT NULLに合わせる（Carモデル/DBは make, model, year が必須）
+    required = ["stock_no", "make", "model", "year"]
+    missing = [k for k in required if not payload.get(k)]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required fields: {missing}",
+        )
 
     try:
         car = Car(**payload)
