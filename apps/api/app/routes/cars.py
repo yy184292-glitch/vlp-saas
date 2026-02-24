@@ -116,14 +116,18 @@ def _create_car_with_payload(
     for k in list(payload.keys()):
         payload[k] = _norm(payload[k])
 
-    # --- schema -> DB mapping（重要：make -> maker に寄せる）---
-    # schemaは内部的に make、UIは maker を送ることもある
+    # --- schema/UI -> DB mapping（make を必ず埋める：最重要）---
+    # UIは maker を送ることが多い / schema内部は make になることもある
+    if not payload.get("make"):
+        payload["make"] = payload.get("maker")
+
+    # 念のため別候補（将来の入力ゆれ耐性）
+    if not payload.get("make"):
+        payload["make"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
+
+    # 互換用：maker も埋めたいなら（任意）
     if not payload.get("maker"):
         payload["maker"] = payload.get("make")
-
-    # 念のため別候補
-    if not payload.get("maker"):
-        payload["maker"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
 
     # year_month -> first_registration（Carにあるなら）
     if payload.get("year_month") and not payload.get("first_registration"):
@@ -132,7 +136,9 @@ def _create_car_with_payload(
     # inspection_expiry -> shaken_expiry（Carにあるなら）
     if payload.get("inspection_expiry") and not payload.get("shaken_expiry"):
         payload["shaken_expiry"] = payload.get("inspection_expiry")
+    
 
+    
     # --- filter to actual model columns ---
     mapper = inspect(Car)
     allowed_keys = {c.key for c in mapper.columns}
