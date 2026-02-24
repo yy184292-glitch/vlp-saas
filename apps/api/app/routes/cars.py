@@ -100,19 +100,41 @@ def _create_car_with_payload(
 ) -> Car:
 
     payload = dict(payload)
+
+    # --- always set tenant/user ---
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
-    # --- schema -> DB column mapping (互換レイヤ) ---
-    if "maker" in payload and "make" not in payload:
+    # --- normalize strings ---
+    def _norm(v):
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s if s else None
+        return v
+
+    for k in list(payload.keys()):
+        payload[k] = _norm(payload[k])
+
+    # --- schema -> DB mapping (強制) ---
+    # maker -> make
+    if not payload.get("make"):
         payload["make"] = payload.get("maker")
 
-    if "year_month" in payload and "first_registration" not in payload:
+    # 念のため別候補（OCR/別名が将来入っても壊れない）
+    if not payload.get("make"):
+        payload["make"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
+
+    # year_month -> first_registration (optional)
+    if payload.get("year_month") and not payload.get("first_registration"):
         payload["first_registration"] = payload.get("year_month")
 
-    if "inspection_expiry" in payload and "shaken_expiry" not in payload:
+    # inspection_expiry -> shaken_expiry (optional)
+    if payload.get("inspection_expiry") and not payload.get("shaken_expiry"):
         payload["shaken_expiry"] = payload.get("inspection_expiry")
 
+    # --- filter to actual model columns ---
     mapper = inspect(Car)
     allowed_keys = {c.key for c in mapper.columns}
 
@@ -122,9 +144,9 @@ def _create_car_with_payload(
 
     payload = {k: v for k, v in payload.items() if k in allowed_keys}
 
-    # DBのNOT NULLに合わせる（Carモデル/DBは make, model, year が必須）
+    # --- required fields based on DB constraints ---
     required = ["stock_no", "make", "model", "year"]
-    missing = [k for k in required if not payload.get(k)]
+    missing = [k for k in required if payload.get(k) in (None, "")]
     if missing:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -151,7 +173,6 @@ def _create_car_with_payload(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create car: {str(e)}",
         )
-
 
 def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
 
