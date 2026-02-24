@@ -11,13 +11,11 @@ from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.user import User
 
-# Bearerトークンを Authorization: Bearer <token> から取得
-# auto_error=False にして自前で 401 を統一する
+# Authorization: Bearer <token>
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def _unauthorized(detail: str = "Could not validate credentials") -> HTTPException:
-    # RFC的に401は WWW-Authenticate を返すのが望ましい
     return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail=detail,
@@ -30,9 +28,9 @@ def get_current_user(
     db: Session = Depends(get_db),
 ) -> User:
     """
-    Authentication dependency (single source of truth).
-    - Extract Bearer token
-    - Verify JWT via core.security.decode_access_token
+    Single source of truth for authentication dependency.
+    - Extract Bearer token from Authorization header
+    - Verify JWT via app.core.security.decode_access_token
     - Load User by UUID
     """
     if creds is None or not creds.credentials:
