@@ -1,7 +1,7 @@
 # app/schemas/car.py
 
 from datetime import date, datetime
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, AliasChoices
 
 
 class CarBase(BaseModel):
@@ -10,7 +10,13 @@ class CarBase(BaseModel):
     car_number: str | None = None
     status: str = "在庫"
 
-    maker: str | None = None
+    # ★ここがポイント：入力は make / maker どっちでもOK、内部は make に統一
+    make: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("make", "maker"),
+        serialization_alias="maker",  # レスポンスは今まで通り maker で返したいなら
+    )
+
     model: str | None = None
     model_code: str | None = None
     grade: str | None = None
@@ -43,11 +49,13 @@ class CarCreate(CarBase):
 
 
 class CarUpdate(BaseModel):
-    # 全部optional
     stock_no: str | None = None
     car_number: str | None = None
     status: str | None = None
-    maker: str | None = None
+
+    # updateも同様に
+    make: str | None = Field(default=None, validation_alias=AliasChoices("make", "maker"))
+
     model: str | None = None
     model_code: str | None = None
     grade: str | None = None
