@@ -233,9 +233,12 @@ def save_valuation_to_car(
     current_user: User = Depends(get_current_user),
 ):
     """
-    査定を計算して cars に保存する。
-    calculate_valuation は store_id を引数で受け取る設計なので current_user は渡さない。
+    査定を計算して
+    - cars を更新
+    - car_valuations に履歴を保存
+    を同一トランザクションで実行
     """
+
     car = _get_car_owned(db, car_id, current_user)
 
     make = getattr(car, "make", None) or getattr(car, "maker", None)
@@ -245,7 +248,7 @@ def save_valuation_to_car(
     if not make or not model or not year:
         raise HTTPException(
             status_code=400,
-            detail="Car is missing required fields for valuation (make/model/year).",
+            detail="Car is missing required fields for valuation.",
         )
 
     try:
@@ -255,25 +258,49 @@ def save_valuation_to_car(
             make=str(make),
             model=str(model),
             grade=str(getattr(car, "grade", "") or ""),
-            year=_to_int(year, default=0),
-            mileage=_to_int(getattr(car, "mileage", 0), default=0),
+            year=int(year),
+            mileage=int(getattr(car, "mileage", 0) or 0),
         )
 
-        # result の欠損に備えて安全に取り出す
-        buy_cap_price = _to_int(result.get("buy_cap_price"), default=0)
-        recommended_price = _to_int(result.get("recommended_price"), default=0)
-        expected_profit = _to_int(result.get("expected_profit"), default=0)
-        expected_profit_rate = _to_float(result.get("expected_profit_rate"), default=0.0)
+        now = datetime.now(timezone.utc)
 
-        car.expected_buy_price = buy_cap_price
-        car.expected_sell_price = recommended_price
-        car.expected_profit = expected_profit
-        car.expected_profit_rate = expected_profit_rate
-        car.valuation_at = datetime.now(timezone.utc)
+        buy_price = int(result["buy_cap_price"])
+        sell_price = int(result["recommended_price"])
+        profit = int(result["expected_profit"])
+        profit_rate = float(result["expected_profit_rate"])
+
+        # ----------------------------
+        # cars 更新（最新状態）
+        # ----------------------------
+        car.expected_buy_price = buy_price
+        car.expected_sell_price = sell_price
+        car.expected_profit = profit
+        car.expected_profit_rate = profit_rate
+        car.valuation_at = now
 
         db.add(car)
+
+        # ----------------------------
+        # 履歴追加
+        # ----------------------------
+        history = CarValuation(
+            car_id=car.id,
+            store_id=current_user.store_id,
+            buy_price=buy_price,
+            sell_price=sell_price,
+            profit=profit,
+            profit_rate=profit_rate,
+            valuation_at=now,
+        )
+
+        db.add(history)
+
+        # ----------------------------
+        # commit（同時）
+        # ----------------------------
         db.commit()
         db.refresh(car)
+
         return car
 
     except HTTPException:
