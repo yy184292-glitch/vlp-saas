@@ -2,6 +2,7 @@
 
 from datetime import date, datetime
 from pydantic import BaseModel, Field, AliasChoices
+from uuid import UUID
 
 
 class CarBase(BaseModel):
@@ -78,7 +79,7 @@ class CarUpdate(BaseModel):
 
 class CarRead(CarBase):
 
-    id: str
+    id: UUID
     created_at: datetime
     updated_at: datetime
 
