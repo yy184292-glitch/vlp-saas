@@ -14,7 +14,9 @@ class ValuationCacheExternal(Base):
     __tablename__ = "valuation_cache_external"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    store_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False)
+    store_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("stores.id", ondelete="CASCADE"), nullable=False
+    )
 
     provider: Mapped[str] = mapped_column(String, nullable=False)
     make: Mapped[str] = mapped_column(String, nullable=False)
