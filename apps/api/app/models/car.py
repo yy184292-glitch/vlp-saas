@@ -31,7 +31,8 @@ class Car(Base):
     stock_no = Column(String, nullable=False, index=True)
 
     # 基本情報
-    maker = Column(String, nullable=False)
+    make = Column(String, nullable=False)
+    maker = Column(String, nullable=true)
     model = Column(String, nullable=False)
     grade = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
