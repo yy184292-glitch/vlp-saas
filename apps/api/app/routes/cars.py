@@ -21,6 +21,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_user
+
 from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.car import Car
