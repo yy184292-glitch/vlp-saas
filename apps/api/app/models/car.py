@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -11,7 +11,15 @@ class Car(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    # ★追加（認証ユーザー紐付け用・UUID）
+    # store分離（商品版必須）
+    store_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("stores.id"),
+        nullable=False,
+        index=True,
+    )
+
+    # 作成ユーザー
     user_id = Column(
         UUID(as_uuid=True),
         ForeignKey("users.id"),
@@ -19,29 +27,33 @@ class Car(Base):
         index=True,
     )
 
-    # 基本
-    make = Column(String, nullable=False)
+    # 在庫番号（商品版必須）
+    stock_no = Column(String, nullable=False, index=True)
+
+    # 基本情報
+    maker = Column(String, nullable=False)
     model = Column(String, nullable=False)
-    year = Column(Integer, nullable=False)
+    grade = Column(String, nullable=True)
+    year = Column(Integer, nullable=True)
+    mileage = Column(Integer, nullable=True)
 
-    # OCR拡張（車検証）
-    vin = Column(String, nullable=True)               # 車台番号
-    model_code = Column(String, nullable=True)        # 型式
-    first_registration = Column(String, nullable=True)  # 初度登録年月
+    vin = Column(String, nullable=True)
+    model_code = Column(String, nullable=True)
+    color = Column(String, nullable=True)
 
-    engine_displacement = Column(String, nullable=True)  # 排気量
-    fuel_type = Column(String, nullable=True)            # 燃料
-    color = Column(String, nullable=True)                # 車体色
+    # valuation保存（今回追加）
+    expected_buy_price = Column(Integer, nullable=True)
+    expected_sell_price = Column(Integer, nullable=True)
+    expected_profit = Column(Integer, nullable=True)
+    expected_profit_rate = Column(Float, nullable=True)
+    valuation_at = Column(DateTime(timezone=True), nullable=True)
 
-    owner_name = Column(String, nullable=True)           # 所有者
-    user_name = Column(String, nullable=True)            # 使用者
+    # timestamps
+    created_at = Column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
 
-    shaken_expiry = Column(String, nullable=True)        # 車検満了日
-
-    mileage = Column(Integer, nullable=True)             # 走行距離
-
-    # 管理
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True),
         server_default=func.now(),
