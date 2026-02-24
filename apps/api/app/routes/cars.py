@@ -214,7 +214,7 @@ def _create_car_with_payload(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create car: {str(e)}",
+            detail=f"Failed to create car: {type(e).__name__}: {str(e)}",
         )
 
 def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
