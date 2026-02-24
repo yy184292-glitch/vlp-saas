@@ -100,7 +100,8 @@ def _create_car_with_payload(
 ) -> Car:
 
     payload = dict(payload)
-    # clientが送っても無視（DB/サーバ側で採番・自動設定する）
+
+    # clientが送っても無視（サーバ側で決まる）
     payload.pop("id", None)
     payload.pop("created_at", None)
     payload.pop("updated_at", None)
@@ -108,7 +109,6 @@ def _create_car_with_payload(
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
-    # --- normalize strings ---
     def _norm(v):
         if v is None:
             return None
@@ -120,27 +120,61 @@ def _create_car_with_payload(
     for k in list(payload.keys()):
         payload[k] = _norm(payload[k])
 
-    # --- schema/UI -> DB mapping（make を必ず埋める：最重要）---
-    # UIは maker を送ることが多い / schema内部は make になることもある
+    # make を必ず埋める（DB必須）
     if not payload.get("make"):
         payload["make"] = payload.get("maker")
 
-    # 念のため別候補（将来の入力ゆれ耐性）
     if not payload.get("make"):
         payload["make"] = payload.get("manufacturer") or payload.get("車名") or payload.get("メーカー")
 
-    # 互換用：maker も埋めたいなら（任意）
+    # 互換用に maker も埋める
     if not payload.get("maker"):
         payload["maker"] = payload.get("make")
 
-    # year_month -> first_registration（Carにあるなら）
     if payload.get("year_month") and not payload.get("first_registration"):
         payload["first_registration"] = payload.get("year_month")
 
-    # inspection_expiry -> shaken_expiry（Carにあるなら）
     if payload.get("inspection_expiry") and not payload.get("shaken_expiry"):
         payload["shaken_expiry"] = payload.get("inspection_expiry")
-    
+
+    mapper = inspect(Car)
+    allowed_keys = {c.key for c in mapper.columns}
+
+    dropped_keys = sorted(set(payload.keys()) - allowed_keys)
+    if dropped_keys:
+        logger.info("Dropped unsupported car fields: %s", dropped_keys)
+
+    payload = {k: v for k, v in payload.items() if k in allowed_keys}
+
+    # DB制約に合わせる（make が必須）
+    required = ["stock_no", "make", "model", "year"]
+    missing = [k for k in required if payload.get(k) in (None, "")]
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Missing required fields: {missing}",
+        )
+
+    try:
+        car = Car(**payload)
+        db.add(car)
+        db.commit()
+        db.refresh(car)
+        return car
+
+    except IntegrityError as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Integrity error: {str(e.orig)}",
+        )
+
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create car: {str(e)}",
+        )
 
     
     # --- filter to actual model columns ---
