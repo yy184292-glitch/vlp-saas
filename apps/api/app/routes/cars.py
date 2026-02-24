@@ -1,6 +1,8 @@
-# app/routes/cars.py (UUID対応 完全版)
+# app/routes/cars.py
 from __future__ import annotations
 
+import logging
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional
 from uuid import UUID
 
@@ -15,8 +17,8 @@ from fastapi import (
 )
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel, ConfigDict
-from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 
 from app.core.security import decode_access_token
@@ -33,9 +35,14 @@ from app.services.shaken_ocr import (
     parse_shaken_text_to_json,
 )
 
+# valuation import（ここは既存に合わせる）
+from app.services.valuation_service import calculate_valuation
+
 
 router = APIRouter(prefix="/cars", tags=["cars"])
 security = HTTPBearer(auto_error=False)
+
+logger = logging.getLogger(__name__)
 
 
 # =========================
@@ -45,7 +52,6 @@ def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
-
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -53,7 +59,6 @@ def get_current_user(
         )
 
     token: str = credentials.credentials
-
     user_id_str: Optional[str] = decode_access_token(token)
 
     if user_id_str is None:
@@ -62,7 +67,6 @@ def get_current_user(
             detail="Invalid authentication token",
         )
 
-    # UUIDとして解釈
     try:
         user_id = UUID(user_id_str)
     except (TypeError, ValueError):
@@ -72,7 +76,6 @@ def get_current_user(
         )
 
     user: Optional[User] = db.get(User, user_id)
-
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -85,23 +88,14 @@ def get_current_user(
 # =========================================================
 # Internal helpers
 # =========================================================
-
-import logging
-from sqlalchemy.inspection import inspect
-from sqlalchemy.exc import IntegrityError
-from fastapi import HTTPException, status
-
-logger = logging.getLogger(__name__)
-
 def _create_car_with_payload(
     db: Session,
     current_user: User,
     payload: Dict[str, Any],
 ) -> Car:
-
     payload = dict(payload)
 
-    # clientが送っても無視（サーバ側で決まる）
+    # クライアントが送っても無視（サーバ側で決まる）
     payload.pop("id", None)
     payload.pop("created_at", None)
     payload.pop("updated_at", None)
@@ -109,7 +103,7 @@ def _create_car_with_payload(
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
-    def _norm(v):
+    def _norm(v: Any) -> Any:
         if v is None:
             return None
         if isinstance(v, str):
@@ -130,12 +124,6 @@ def _create_car_with_payload(
     # 互換用に maker も埋める
     if not payload.get("maker"):
         payload["maker"] = payload.get("make")
-
-    if payload.get("year_month") and not payload.get("first_registration"):
-        payload["first_registration"] = payload.get("year_month")
-
-    if payload.get("inspection_expiry") and not payload.get("shaken_expiry"):
-        payload["shaken_expiry"] = payload.get("inspection_expiry")
 
     mapper = inspect(Car)
     allowed_keys = {c.key for c in mapper.columns}
@@ -161,55 +149,12 @@ def _create_car_with_payload(
         db.commit()
         db.refresh(car)
         return car
-
     except IntegrityError as e:
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Integrity error: {str(e.orig)}",
         )
-
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to create car: {str(e)}",
-        )
-
-    
-    # --- filter to actual model columns ---
-    mapper = inspect(Car)
-    allowed_keys = {c.key for c in mapper.columns}
-
-    dropped_keys = sorted(set(payload.keys()) - allowed_keys)
-    if dropped_keys:
-        logger.info("Dropped unsupported car fields: %s", dropped_keys)
-
-    payload = {k: v for k, v in payload.items() if k in allowed_keys}
-
-    # --- required fields based on DB constraints（Carモデルに合わせる）---
-    required = ["stock_no", "maker", "model", "year"]
-    missing = [k for k in required if payload.get(k) in (None, "")]
-    if missing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Missing required fields: {missing}",
-        )
-
-    try:
-        car = Car(**payload)
-        db.add(car)
-        db.commit()
-        db.refresh(car)
-        return car
-
-    except IntegrityError as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Integrity error: {str(e.orig)}",
-        )
-
     except Exception as e:
         db.rollback()
         raise HTTPException(
@@ -217,80 +162,8 @@ def _create_car_with_payload(
             detail=f"Failed to create car: {type(e).__name__}: {str(e)}",
         )
 
-from uuid import UUID
-from datetime import datetime, timezone
-from fastapi import Body
-
-from app.services.valuation_service import calculate_valuation  # 既存の計算関数に合わせて変更
-
-@router.post("/{car_id}/valuation", response_model=CarRead)
-from datetime import datetime, timezone
-from uuid import UUID
-from typing import Optional
-
-from fastapi import HTTPException
-from sqlalchemy.exc import IntegrityError
-
-# 既存の import に合わせてここは残す/調整
-# from app.services.valuation_service import calculate_valuation
-
-@router.post("/{car_id}/valuation", response_model=CarRead)
-def save_valuation_to_car(
-    car_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        car: Optional[Car] = db.get(Car, car_id)
-        if car is None:
-            raise HTTPException(status_code=404, detail="Car not found")
-
-        if car.store_id != current_user.store_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-
-        make = car.make or car.maker
-        if not make or not car.model or not car.year:
-            raise HTTPException(
-                status_code=400,
-                detail="Car is missing required fields for valuation (make/model/year).",
-            )
-
-        req = {
-            "make": make,
-            "model": car.model,
-            "grade": car.grade or "",
-            "year": int(car.year),
-            "mileage": int(car.mileage or 0),
-        }
-
-        # ★ここが落ちてる可能性が高い（関数名/引数違い）
-        result = calculate_valuation(db=db, current_user=current_user, payload=req)
-
-        car.expected_buy_price = result.get("buy_cap_price")
-        car.expected_sell_price = result.get("recommended_price")
-        car.expected_profit = result.get("expected_profit")
-        car.expected_profit_rate = result.get("expected_profit_rate")
-        car.valuation_at = datetime.now(timezone.utc)
-
-        db.add(car)
-        db.commit()
-        db.refresh(car)
-        return car
-
-    except HTTPException:
-        raise
-    except IntegrityError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=f"Integrity error: {str(e.orig)}")
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail=f"save_valuation_to_car failed: {type(e).__name__}: {str(e)}",
-        )
 
 def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
-
     mapping: Dict[str, List[str]] = {
         "vin": ["vin", "vehicle_id_number", "車台番号", "chassis_number"],
         "plate_no": ["plate_no", "registration_number", "登録番号", "ナンバー"],
@@ -312,7 +185,6 @@ def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
     for car_field, candidates in mapping.items():
         if car_field not in allowed_fields:
             continue
-
         for key in candidates:
             if key in shaken and shaken[key] not in (None, ""):
                 out[car_field] = shaken[key]
@@ -343,27 +215,10 @@ def create_car(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    # pydantic v2
     payload = data.model_dump()
-
-    # --- 強制マッピング（これで make が必ず入る）---
-    # DBは make NOT NULL（Carモデル/DB側） :contentReference[oaicite:3]{index=3}
-    if not payload.get("make"):
-        # schemaは maker :contentReference[oaicite:4]{index=4}
-        payload["make"] = getattr(data, "maker", None)
-
-    # stock_no も念のため（payloadに無い事故を潰す）
-    if not payload.get("stock_no"):
-        payload["stock_no"] = getattr(data, "stock_no", None)
-
-    # 最終防衛：ここで make が無ければ400（原因が一発で分かる）
-    if not payload.get("make"):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="maker (schema) was not received; cannot map to make (DB).",
-        )
-
     return _create_car_with_payload(db, current_user, payload)
+
+
 @router.post("/{car_id}/valuation", response_model=CarRead)
 def save_valuation_to_car(
     car_id: UUID,
@@ -393,13 +248,12 @@ def save_valuation_to_car(
             "mileage": int(car.mileage or 0),
         }
 
-        # ★ここ：あなたのvaluation_serviceの関数名に依存する
         result = calculate_valuation(db=db, current_user=current_user, payload=req)
 
-        car.expected_buy_price = result["buy_cap_price"]
-        car.expected_sell_price = result["recommended_price"]
-        car.expected_profit = result["expected_profit"]
-        car.expected_profit_rate = result["expected_profit_rate"]
+        car.expected_buy_price = result.get("buy_cap_price")
+        car.expected_sell_price = result.get("recommended_price")
+        car.expected_profit = result.get("expected_profit")
+        car.expected_profit_rate = result.get("expected_profit_rate")
         car.valuation_at = datetime.now(timezone.utc)
 
         db.add(car)
@@ -414,25 +268,21 @@ def save_valuation_to_car(
         raise HTTPException(
             status_code=500,
             detail=f"save_valuation_to_car failed: {type(e).__name__}: {str(e)}",
-        )    
+        )
 
-# =========================================================
-# update
-# =========================================================
+
 @router.put("/{car_id}", response_model=CarRead)
 def update_car(
-    car_id: int,
+    car_id: UUID,
     data: CarUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-
     car = db.get(Car, car_id)
-
     if car is None:
         raise HTTPException(status_code=404, detail="Car not found")
 
-    if car.user_id != current_user.id:
+    if car.store_id != current_user.store_id:
         raise HTTPException(status_code=403, detail="Forbidden")
 
     for key, value in data.model_dump(exclude_unset=True).items():
@@ -442,34 +292,24 @@ def update_car(
         db.commit()
         db.refresh(car)
         return car
-
-    except IntegrityError:
+    except IntegrityError as e:
         db.rollback()
-        raise HTTPException(
-            status_code=400,
-            detail="Unique constraint failed",
-        )
+        raise HTTPException(status_code=400, detail=f"Integrity error: {str(e.orig)}")
 
 
-# =========================================================
-# delete
-# =========================================================
 @router.delete("/{car_id}")
 def delete_car(
-    car_id: int,
+    car_id: UUID,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-
     car = db.get(Car, car_id)
-
     if car is None:
         raise HTTPException(status_code=404)
 
-    if car.user_id != current_user.id:
-        raise HTTPException(status_code=403)
+    if car.store_id != current_user.store_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     db.delete(car)
     db.commit()
-
     return {"ok": True}
