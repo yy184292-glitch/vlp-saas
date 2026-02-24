@@ -27,6 +27,7 @@ class Car(Base):
     )
 
     stock_no = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, server_default="在庫")
 
     make = Column(String, nullable=False)
     maker = Column(String, nullable=True)
