@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.car import Car
 from app.models.user import User
-from app.services.valuation_service import calculate_valuation  # あなたが貼った calculate_valuation が入ってるモジュール
+
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
