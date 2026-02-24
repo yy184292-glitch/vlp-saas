@@ -44,12 +44,16 @@ class Car(Base):
     expected_profit_rate = Column(Float, nullable=True)
     valuation_at = Column(DateTime(timezone=True), nullable=True)
 
-    created_at = Column(
-        DateTime(timezone=True),
-        nullable=False,
-        server_default=func.now(),
-    )
+　　from datetime import datetime, timezone  # 既にあれば不要
 
+　　created_at = Column(
+  　　  DateTime(timezone=True),
+  　　  nullable=False,
+  　　  default=lambda: datetime.now(timezone.utc),
+   　　 server_default=func.now(),
+　　)
+
+    
     updated_at = Column(
         DateTime(timezone=True),
         nullable=False,
