@@ -18,6 +18,8 @@ from app.models.user import User
 from app.schemas.car import CarCreate, CarRead, CarUpdate
 from app.services.valuation_service import calculate_valuation
 
+from app.models.car_valuation import CarValuation
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cars", tags=["cars"])
