@@ -100,6 +100,10 @@ def _create_car_with_payload(
 ) -> Car:
 
     payload = dict(payload)
+    # clientが送っても無視（DB/サーバ側で採番・自動設定する）
+    payload.pop("id", None)
+    payload.pop("created_at", None)
+    payload.pop("updated_at", None)
 
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
