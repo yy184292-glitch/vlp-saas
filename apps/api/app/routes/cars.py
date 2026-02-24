@@ -12,7 +12,7 @@ from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.dependencies.auth import get_current_user  # ★ここが正解（検出済み）
+from app.dependencies.auth import get_current_user  # ✅ “唯一の正”を使う
 from app.models.car import Car
 from app.models.user import User
 from app.schemas.car import CarCreate, CarRead, CarUpdate
@@ -26,6 +26,55 @@ router = APIRouter(prefix="/cars", tags=["cars"])
 # =========================================================
 # Internal helpers
 # =========================================================
+def _to_int(value: Any, *, default: int = 0) -> int:
+    """Best-effort int coercion for API/DB safety."""
+    if value is None:
+        return default
+    try:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, (int,)):
+            return int(value)
+        if isinstance(value, float):
+            return int(value)
+        if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return default
+            return int(float(s))
+        return int(value)
+    except Exception:
+        return default
+
+
+def _to_float(value: Any, *, default: float = 0.0) -> float:
+    """Best-effort float coercion for API/DB safety."""
+    if value is None:
+        return default
+    try:
+        if isinstance(value, bool):
+            return default
+        if isinstance(value, (float, int)):
+            return float(value)
+        if isinstance(value, str):
+            s = value.strip()
+            if not s:
+                return default
+            return float(s)
+        return float(value)
+    except Exception:
+        return default
+
+
+def _norm_str(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        s = value.strip()
+        return s if s else None
+    return value
+
+
 def _create_car_with_payload(db: Session, current_user: User, payload: Dict[str, Any]) -> Car:
     """
     CarCreate の payload を受け取り、DBモデルに合わせて整形して作成する。
@@ -38,19 +87,13 @@ def _create_car_with_payload(db: Session, current_user: User, payload: Dict[str,
     payload.pop("created_at", None)
     payload.pop("updated_at", None)
 
+    # ✅ テナント分離を強制
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
-    def _norm(v: Any) -> Any:
-        if v is None:
-            return None
-        if isinstance(v, str):
-            s = v.strip()
-            return s if s else None
-        return v
-
+    # 値正規化
     for k in list(payload.keys()):
-        payload[k] = _norm(payload[k])
+        payload[k] = _norm_str(payload[k])
 
     # make/maker 揺れ吸収（DB要件に合わせる）
     if not payload.get("make"):
@@ -58,12 +101,12 @@ def _create_car_with_payload(db: Session, current_user: User, payload: Dict[str,
     if not payload.get("maker"):
         payload["maker"] = payload.get("make")
 
-    # モデルのカラムのみ許可
+    # モデルのカラムのみ許可（余計なキーは落とす）
     mapper = inspect(Car)
     allowed_keys = {c.key for c in mapper.columns}
     payload = {k: v for k, v in payload.items() if k in allowed_keys}
 
-    # 最低限チェック（引き継ぎメモの cars 成功条件に合わせる）
+    # 最低限チェック
     required = ["stock_no", "make", "model", "year"]
     missing = [k for k in required if payload.get(k) in (None, "")]
     if missing:
@@ -71,6 +114,12 @@ def _create_car_with_payload(db: Session, current_user: User, payload: Dict[str,
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Missing required fields: {missing}",
         )
+
+    # year / mileage が文字で来る可能性があるので軽く安全に寄せる
+    if "year" in payload:
+        payload["year"] = _to_int(payload["year"], default=0) or None
+    if "mileage" in payload:
+        payload["mileage"] = _to_int(payload["mileage"], default=0)
 
     try:
         car = Car(**payload)
@@ -82,7 +131,7 @@ def _create_car_with_payload(db: Session, current_user: User, payload: Dict[str,
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Integrity error: {str(e.orig)}",
+            detail=f"Integrity error: {str(getattr(e, 'orig', e))}",
         ) from None
     except Exception as e:
         db.rollback()
@@ -91,6 +140,16 @@ def _create_car_with_payload(db: Session, current_user: User, payload: Dict[str,
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create car: {type(e).__name__}: {str(e)}",
         ) from None
+
+
+def _get_car_owned(db: Session, car_id: UUID, current_user: User) -> Car:
+    """Fetch car and enforce tenant ownership."""
+    car: Optional[Car] = db.get(Car, car_id)
+    if car is None:
+        raise HTTPException(status_code=404, detail="Car not found")
+    if getattr(car, "store_id", None) != current_user.store_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return car
 
 
 # =========================================================
@@ -113,13 +172,15 @@ def update_car(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    car: Optional[Car] = db.get(Car, car_id)
-    if car is None:
-        raise HTTPException(status_code=404, detail="Car not found")
-    if car.store_id != current_user.store_id:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    car = _get_car_owned(db, car_id, current_user)
 
-    for key, value in data.model_dump(exclude_unset=True).items():
+    # ✅ テナント関連の更新は拒否（万一 schema に混入しても守る）
+    blocked_fields = {"id", "user_id", "store_id", "created_at", "updated_at"}
+    updates = data.model_dump(exclude_unset=True)
+
+    for key, value in updates.items():
+        if key in blocked_fields:
+            continue
         setattr(car, key, value)
 
     try:
@@ -128,7 +189,17 @@ def update_car(
         return car
     except IntegrityError as e:
         db.rollback()
-        raise HTTPException(status_code=400, detail=f"Integrity error: {str(e.orig)}") from None
+        raise HTTPException(
+            status_code=400,
+            detail=f"Integrity error: {str(getattr(e, 'orig', e))}",
+        ) from None
+    except Exception as e:
+        db.rollback()
+        logger.exception("update_car failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"update_car failed: {type(e).__name__}: {str(e)}",
+        ) from None
 
 
 @router.delete("/{car_id}")
@@ -137,19 +208,23 @@ def delete_car(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    car: Optional[Car] = db.get(Car, car_id)
-    if car is None:
-        raise HTTPException(status_code=404, detail="Car not found")
-    if car.store_id != current_user.store_id:
-        raise HTTPException(status_code=403, detail="Forbidden")
+    car = _get_car_owned(db, car_id, current_user)
 
-    db.delete(car)
-    db.commit()
-    return {"ok": True}
+    try:
+        db.delete(car)
+        db.commit()
+        return {"ok": True}
+    except Exception as e:
+        db.rollback()
+        logger.exception("delete_car failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"delete_car failed: {type(e).__name__}: {str(e)}",
+        ) from None
 
 
 # =========================================================
-# Valuation Save (最優先タスク)
+# Valuation Save
 # =========================================================
 @router.post("/{car_id}/valuation", response_model=CarRead)
 def save_valuation_to_car(
@@ -159,39 +234,41 @@ def save_valuation_to_car(
 ):
     """
     査定を計算して cars に保存する。
-    calculate_valuation は store_id を引数で受け取る設計なので current_user は渡さない。:contentReference[oaicite:2]{index=2}
+    calculate_valuation は store_id を引数で受け取る設計なので current_user は渡さない。
     """
+    car = _get_car_owned(db, car_id, current_user)
+
+    make = getattr(car, "make", None) or getattr(car, "maker", None)
+    model = getattr(car, "model", None)
+    year = getattr(car, "year", None)
+
+    if not make or not model or not year:
+        raise HTTPException(
+            status_code=400,
+            detail="Car is missing required fields for valuation (make/model/year).",
+        )
+
     try:
-        car: Optional[Car] = db.get(Car, car_id)
-        if car is None:
-            raise HTTPException(status_code=404, detail="Car not found")
-        if car.store_id != current_user.store_id:
-            raise HTTPException(status_code=403, detail="Forbidden")
-
-        make = getattr(car, "make", None) or getattr(car, "maker", None)
-        model = getattr(car, "model", None)
-        year = getattr(car, "year", None)
-
-        if not make or not model or not year:
-            raise HTTPException(
-                status_code=400,
-                detail="Car is missing required fields for valuation (make/model/year).",
-            )
-
         result = calculate_valuation(
             db=db,
             store_id=current_user.store_id,
             make=str(make),
             model=str(model),
             grade=str(getattr(car, "grade", "") or ""),
-            year=int(year),
-            mileage=int(getattr(car, "mileage", 0) or 0),
+            year=_to_int(year, default=0),
+            mileage=_to_int(getattr(car, "mileage", 0), default=0),
         )
 
-        car.expected_buy_price = int(result["buy_cap_price"])
-        car.expected_sell_price = int(result["recommended_price"])
-        car.expected_profit = int(result["expected_profit"])
-        car.expected_profit_rate = float(result["expected_profit_rate"])
+        # result の欠損に備えて安全に取り出す
+        buy_cap_price = _to_int(result.get("buy_cap_price"), default=0)
+        recommended_price = _to_int(result.get("recommended_price"), default=0)
+        expected_profit = _to_int(result.get("expected_profit"), default=0)
+        expected_profit_rate = _to_float(result.get("expected_profit_rate"), default=0.0)
+
+        car.expected_buy_price = buy_cap_price
+        car.expected_sell_price = recommended_price
+        car.expected_profit = expected_profit
+        car.expected_profit_rate = expected_profit_rate
         car.valuation_at = datetime.now(timezone.utc)
 
         db.add(car)
