@@ -44,7 +44,7 @@ class Car(Base):
     expected_profit_rate = Column(Float, nullable=True)
     valuation_at = Column(DateTime(timezone=True), nullable=True)
 
-　　from datetime import datetime, timezone  # 既にあれば不要
+from datetime import datetime, timezone
 
 　　created_at = Column(
   　　  DateTime(timezone=True),
