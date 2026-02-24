@@ -86,6 +86,8 @@ def get_current_user(
 # Internal helpers
 # =========================================================
 
+from sqlalchemy.inspection import inspect
+
 def _create_car_with_payload(
     db: Session,
     current_user: User,
@@ -93,24 +95,23 @@ def _create_car_with_payload(
 ) -> Car:
 
     payload = dict(payload)
-
-    # 必須：user_id と store_id を両方セット
     payload["user_id"] = current_user.id
     payload["store_id"] = current_user.store_id
 
+    # Carモデルに存在するカラムだけ通す（余計なキーで500にならない）
+    mapper = inspect(Car)
+    allowed_keys = {c.key for c in mapper.columns}
+    payload = {k: v for k, v in payload.items() if k in allowed_keys}
+
     try:
         car = Car(**payload)
-
         db.add(car)
         db.commit()
         db.refresh(car)
-
         return car
 
     except IntegrityError as e:
         db.rollback()
-
-        # エラー内容を出す（デバッグしやすく）
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Integrity error: {str(e.orig)}",
@@ -118,12 +119,10 @@ def _create_car_with_payload(
 
     except Exception as e:
         db.rollback()
-
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to create car: {str(e)}",
         )
-
 
 
 def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
