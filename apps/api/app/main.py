@@ -20,6 +20,7 @@ from app.routes.auth import router as auth_router
 from app.routes.users import router as users_router
 from app.routes.cars import router as cars_router
 from app.routes.shaken import router as shaken_router
+from app.routes.valuation import router as valuation_router
 
 logger = logging.getLogger(__name__)
 
@@ -155,3 +156,4 @@ app.include_router(auth_router, prefix=API_PREFIX)
 app.include_router(users_router, prefix=API_PREFIX)
 app.include_router(cars_router, prefix=API_PREFIX)
 app.include_router(shaken_router, prefix=API_PREFIX)
+app.include_router(valuation_router, prefix=API_PREFIX)
