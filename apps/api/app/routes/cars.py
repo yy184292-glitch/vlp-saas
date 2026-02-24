@@ -217,6 +217,63 @@ def _create_car_with_payload(
             detail=f"Failed to create car: {type(e).__name__}: {str(e)}",
         )
 
+from uuid import UUID
+from datetime import datetime, timezone
+from fastapi import Body
+
+from app.services.valuation_service import calculate_valuation  # 既存の計算関数に合わせて変更
+
+@router.post("/{car_id}/valuation", response_model=CarRead)
+def save_valuation_to_car(
+    car_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """
+    車両の情報を元に査定を計算し、carsテーブルに保存する。
+    store_id で必ず分離。
+    """
+    car: Optional[Car] = db.get(Car, car_id)
+    if car is None:
+        raise HTTPException(status_code=404, detail="Car not found")
+
+    # store分離（最重要）
+    if car.store_id != current_user.store_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    # grade/mileage/year は NULL の可能性があるので安全に扱う
+    make = car.make or car.maker  # 互換
+    if not make or not car.model or not car.year:
+        raise HTTPException(
+            status_code=400,
+            detail="Car is missing required fields for valuation (make/model/year).",
+        )
+
+    req = {
+        "make": make,
+        "model": car.model,
+        "grade": car.grade or "",
+        "year": int(car.year),
+        "mileage": int(car.mileage or 0),
+    }
+
+    # 既存の calculate（store設定反映済みのやつ）を呼ぶ
+    # ここはあなたの valuation_service の関数名/引数に合わせる
+    result = calculate_valuation(db=db, current_user=current_user, payload=req)
+
+    # carsへ保存（カラム名はあなたのDBに合わせている）
+    car.expected_buy_price = result["buy_cap_price"]
+    car.expected_sell_price = result["recommended_price"]
+    car.expected_profit = result["expected_profit"]
+    car.expected_profit_rate = result["expected_profit_rate"]
+    car.valuation_at = datetime.now(timezone.utc)
+
+    db.add(car)
+    db.commit()
+    db.refresh(car)
+
+    return car
+
 def _map_shaken_to_carcreate(shaken: Dict[str, Any]) -> Dict[str, Any]:
 
     mapping: Dict[str, List[str]] = {
