@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
-from sqlalchemy import DateTime
+from datetime import datetime, timezone
 
 from app.models.base import Base
 
@@ -64,13 +64,15 @@ class Car(Base):
 
 　　created_at = Column(
 　　    DateTime(timezone=True),
- 　　   nullable=False,
+　　    nullable=False,
+ 　　   default=lambda: datetime.now(timezone.utc),
   　　  server_default=func.now(),
 　　)
 
 　　updated_at = Column(
- 　　   DateTime(timezone=True),
-  　　  nullable=False,
+　　    DateTime(timezone=True),
+ 　　   nullable=False,
+ 　　   default=lambda: datetime.now(timezone.utc),
   　　  server_default=func.now(),
   　　  onupdate=func.now(),
 　　)
