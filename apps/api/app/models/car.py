@@ -32,7 +32,7 @@ class Car(Base):
 
     # 基本情報
     make = Column(String, nullable=False)
-    maker = Column(String, nullable=true)
+    maker = Column(String, nullable=True)
     model = Column(String, nullable=False)
     grade = Column(String, nullable=True)
     year = Column(Integer, nullable=True)
