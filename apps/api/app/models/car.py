@@ -45,13 +45,12 @@ class Car(Base):
     valuation_at = Column(DateTime(timezone=True), nullable=True)
 
 from datetime import datetime, timezone
-
-　　created_at = Column(
-  　　  DateTime(timezone=True),
-  　　  nullable=False,
-  　　  default=lambda: datetime.now(timezone.utc),
-   　　 server_default=func.now(),
-　　)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(timezone.utc),
+        server default=func.now(),
+    )   
 
     
     updated_at = Column(
