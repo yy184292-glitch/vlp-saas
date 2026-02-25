@@ -271,6 +271,14 @@ export async function deleteCar(id: string): Promise<void> {
   await apiFetch<void>(`/api/v1/cars/${encodeURIComponent(id)}`, { method: "DELETE", auth: true });
 }
 
+export async function getCar(carId: string): Promise<Car> {
+  const data = await apiFetch<unknown>(`/api/v1/cars/${encodeURIComponent(carId)}`, {
+    method: "GET",
+    auth: true,
+  });
+  return normalizeCar(data);
+}
+
 export type LoginResponse = {
   access_token: string;
   token_type?: string;
