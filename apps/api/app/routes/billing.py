@@ -15,7 +15,7 @@ from app.models.billing import BillingDocumentORM, BillingLineORM
 from app.schemas.billing import BillingCreateIn, BillingOut
 
 
-router = APIRouter(prefix="/api/v1", tags=["billing"])
+router = APIRouter(tags=["billing"])
 
 
 # =========================
