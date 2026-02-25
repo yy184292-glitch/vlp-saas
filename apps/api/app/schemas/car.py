@@ -85,3 +85,25 @@ class CarRead(CarBase):
 
     class Config:
         from_attributes = True
+class CarValuationRead(BaseModel):
+    id: UUID
+    car_id: UUID
+    store_id: UUID
+
+    # market価格（今回追加したカラム）
+    market_low: int
+    market_median: int
+    market_high: int
+
+    # 利益計算
+    buy_price: int
+    sell_price: int
+    profit: int
+    profit_rate: float
+
+    # 時刻
+    valuation_at: datetime
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
