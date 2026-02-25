@@ -419,7 +419,7 @@ def export_billing_csv(
 
 
 # ============================================================
-# PDF export（1枚分）: reportlab
+# PDF export（1枚分）: reportlab (Japanese font)
 # ============================================================
 
 @router.get("/billing/{billing_id}/export.pdf")
@@ -442,66 +442,135 @@ def export_billing_pdf(
         .order_by(BillingLineORM.sort_order.asc())
     ).scalars().all()
 
-    # 依存: reportlab（環境に入っている前提）
+    # 依存: reportlab
+    from pathlib import Path
     from reportlab.lib.pagesizes import A4
+    from reportlab.pdfbase import pdfmetrics
+    from reportlab.pdfbase.ttfonts import TTFont
     from reportlab.pdfgen import canvas
+
+    # ---- Font (Japanese) ----
+    font_path = (
+        Path(__file__).resolve().parents[1]
+        / "assets"
+        / "fonts"
+        / "NotoSansJP-Regular.ttf"
+    )
+    if not font_path.exists():
+        raise HTTPException(
+            status_code=500,
+            detail=f"Japanese font not found: {font_path}",
+        )
+
+    # register once per process is ideal, but safe enough to call here
+    try:
+        pdfmetrics.getFont("NotoSansJP")
+    except Exception:
+        pdfmetrics.registerFont(TTFont("NotoSansJP", str(font_path)))
 
     out = io.BytesIO()
     c = canvas.Canvas(out, pagesize=A4)
-    width, height = A4
+    width, height = A4  # noqa: F841
 
+    def set_font(size: int) -> None:
+        c.setFont("NotoSansJP", size)
+
+    def draw_kv(label: str, value: str, y: float) -> float:
+        set_font(10)
+        c.drawString(40, y, f"{label}: {value}")
+        return y - 14
+
+    def yen(n: int) -> str:
+        try:
+            return f"¥{int(n):,}"
+        except Exception:
+            return "¥0"
+
+    # ---- Header ----
     y = height - 48
-    c.setFont("Helvetica-Bold", 16)
-    title = "INVOICE" if doc.kind == "invoice" else "ESTIMATE"
+    set_font(18)
+    title = "請求書" if doc.kind == "invoice" else "見積書"
     c.drawString(40, y, title)
-    y -= 22
 
-    c.setFont("Helvetica", 10)
-    c.drawString(40, y, f"ID: {doc.id}")
-    y -= 14
-    c.drawString(40, y, f"Customer: {doc.customer_name or '-'}")
-    y -= 14
-    c.drawString(40, y, f"Status: {doc.status}")
-    y -= 14
-    c.drawString(40, y, f"Issued at: {doc.issued_at.isoformat() if doc.issued_at else '-'}")
-    y -= 22
+    # right side meta
+    set_font(10)
+    c.drawRightString(560, y, f"ID: {doc.id}")
+    y -= 24
 
-    # table header
-    c.setFont("Helvetica-Bold", 10)
-    c.drawString(40, y, "Name")
-    c.drawRightString(360, y, "Qty")
-    c.drawRightString(460, y, "Unit")
-    c.drawRightString(560, y, "Amount")
+    y = draw_kv("顧客", doc.customer_name or "-", y)
+    y = draw_kv("状態", doc.status or "-", y)
+    issued = doc.issued_at.isoformat() if doc.issued_at else "-"
+    y = draw_kv("発行日", issued, y)
     y -= 10
-    c.line(40, y, 560, y)
-    y -= 14
 
-    c.setFont("Helvetica", 10)
-    for ln in lines:
-        if y < 80:
-            c.showPage()
-            y = height - 48
-            c.setFont("Helvetica", 10)
-
-        c.drawString(40, y, (ln.name or "")[:50])
-        c.drawRightString(360, y, f"{ln.qty:g}")
-        c.drawRightString(460, y, f"{ln.unit_price:,}")
-        c.drawRightString(560, y, f"{ln.amount:,}")
-        y -= 14
-
-    y -= 6
+    # ---- Table header ----
+    set_font(10)
     c.line(40, y, 560, y)
     y -= 16
 
-    c.setFont("Helvetica-Bold", 11)
-    c.drawRightString(520, y, "Subtotal:")
-    c.drawRightString(560, y, f"{doc.subtotal:,}")
+    set_font(10)
+    c.drawString(40, y, "名称")
+    c.drawRightString(360, y, "数量")
+    c.drawRightString(460, y, "単価")
+    c.drawRightString(560, y, "金額")
+    y -= 10
+    c.line(40, y, 560, y)
+    y -= 16
+
+    # ---- Rows ----
+    set_font(10)
+    page_no = 1
+
+    def new_page() -> float:
+        nonlocal page_no
+        c.showPage()
+        page_no += 1
+        return height - 48
+
+    for ln in lines:
+        if y < 90:
+            y = new_page()
+            # repeat header on new page
+            set_font(14)
+            c.drawString(40, y, title)
+            set_font(10)
+            c.drawRightString(560, y, f"ID: {doc.id}")
+            y -= 26
+            c.line(40, y, 560, y)
+            y -= 16
+            set_font(10)
+            c.drawString(40, y, "名称")
+            c.drawRightString(360, y, "数量")
+            c.drawRightString(460, y, "単価")
+            c.drawRightString(560, y, "金額")
+            y -= 10
+            c.line(40, y, 560, y)
+            y -= 16
+            set_font(10)
+
+        name = (ln.name or "")[:60]
+        c.drawString(40, y, name)
+        c.drawRightString(360, y, f"{ln.qty:g}")
+        c.drawRightString(460, y, f"{int(ln.unit_price):,}")
+        c.drawRightString(560, y, f"{int(ln.amount):,}")
+        y -= 14
+
+    # ---- Totals ----
+    y -= 6
+    c.line(40, y, 560, y)
+    y -= 18
+
+    set_font(11)
+    c.drawRightString(520, y, "小計")
+    c.drawRightString(560, y, yen(doc.subtotal))
     y -= 14
-    c.drawRightString(520, y, "Tax:")
-    c.drawRightString(560, y, f"{doc.tax_total:,}")
+    c.drawRightString(520, y, "税")
+    c.drawRightString(560, y, yen(doc.tax_total))
     y -= 14
-    c.drawRightString(520, y, "Total:")
-    c.drawRightString(560, y, f"{doc.total:,}")
+
+    set_font(12)
+    c.drawRightString(520, y, "合計")
+    c.drawRightString(560, y, yen(doc.total))
 
     c.showPage()
     c.save()
@@ -513,7 +582,6 @@ def export_billing_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
 
 # ============================================================
 # IMPORT（既存維持）
