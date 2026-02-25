@@ -381,13 +381,13 @@ export type ValuationCalculateResult = {
 
 function normalizeCalculateResult(raw: any): ValuationCalculateResult {
   return {
-    marketLow: Number(raw.market_low ?? 0),
-    marketMedian: Number(raw.market_median ?? 0),
-    marketHigh: Number(raw.market_high ?? 0),
-    buyCapPrice: Number(raw.buy_cap_price ?? 0),
-    recommendedPrice: Number(raw.recommended_price ?? 0),
-    expectedProfit: Number(raw.expected_profit ?? 0),
-    expectedProfitRate: Number(raw.expected_profit_rate ?? 0),
+    marketLow: Number(raw?.market_low ?? 0),
+    marketMedian: Number(raw?.market_median ?? 0),
+    marketHigh: Number(raw?.market_high ?? 0),
+    buyCapPrice: Number(raw?.buy_cap_price ?? 0),
+    recommendedPrice: Number(raw?.recommended_price ?? 0),
+    expectedProfit: Number(raw?.expected_profit ?? 0),
+    expectedProfitRate: Number(raw?.expected_profit_rate ?? 0),
   }
 }
 
