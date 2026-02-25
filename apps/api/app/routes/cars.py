@@ -58,6 +58,7 @@ class CarValuationRead(BaseModel):
     profit_rate: float
 
     valuation_at: datetime
+    created_at: datetime
 
 
 class CarValuationsListResponse(BaseModel):
