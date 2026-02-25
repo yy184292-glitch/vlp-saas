@@ -96,4 +96,6 @@ class BillingLineOut(BaseModel):
     class Config:
         from_attributes = True
 
+class BillingImportOut(BaseModel):
+    inserted: int = 0
 
