@@ -82,3 +82,18 @@ class BillingLineOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+# schemas/billing.py に追記（BillingCreateIn の下あたり推奨）
+
+class BillingUpdateIn(BaseModel):
+    kind: Optional[BillingKind] = None
+    status: Optional[BillingStatus] = None
+
+    store_id: Optional[UUID] = None
+    customer_name: Optional[str] = None
+    source_work_order_id: Optional[UUID] = None
+    issued_at: Optional[datetime] = None
+
+    # 送られてきた場合のみ「明細を全置換」する
+    lines: Optional[list[BillingLineIn]] = None
+    meta: Optional[dict[str, Any]] = None
