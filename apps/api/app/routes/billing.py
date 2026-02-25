@@ -144,6 +144,85 @@ def create_billing(
 
     return _to_out(doc)
 
+@router.post("/billing/import", response_model=BillingImportOut)
+def import_billing(
+    body: BillingImportIn,
+    db: Session = Depends(get_db),
+):
+    inserted = 0
+    now = datetime.now(timezone.utc)
+
+    for it in body.items:
+        # lines を BillingLineIn へ寄せる（最低限）
+        lines: list[BillingLineIn] = []
+        for raw in it.lines or []:
+            try:
+                name = str(raw.get("name") or "明細")
+                qty = float(raw.get("qty") or 0)
+                unit_price = raw.get("unitPrice") if "unitPrice" in raw else raw.get("unit_price")
+                unit_price_i = int(unit_price) if unit_price is not None else 0
+                lines.append(BillingLineIn(name=name, qty=qty, unit_price=unit_price_i))
+            except Exception:
+                continue
+
+        # subtotal を lines から算出
+        subtotal = 0
+        for ln in lines:
+            subtotal += int(float(ln.qty) * int(ln.unit_price or 0))
+
+        doc = BillingCreateIn(
+            kind=it.kind,
+            status=it.status,
+            customer_name=it.customerName,
+            lines=lines,
+            meta={"_import": "localStorage"},
+        )
+
+        # 既存の create_billing ロジックを直接呼ばずに同等の insert（安全）
+        billing_id = uuid4()
+        meta_json = json.loads(json.dumps(doc.meta or {}))
+
+        db_doc = BillingDocumentORM(
+            id=billing_id,
+            store_id=None,
+            kind=doc.kind,
+            status=doc.status,
+            customer_name=doc.customer_name,
+            subtotal=subtotal,
+            tax_total=0,
+            total=subtotal,
+            issued_at=now,
+            meta=meta_json,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(db_doc)
+
+        for i, ln in enumerate(lines):
+            qty = float(ln.qty)
+            unit_price = int(ln.unit_price or 0)
+            amount = int(qty * unit_price)
+
+            db.add(
+                BillingLineORM(
+                    id=uuid4(),
+                    billing_id=billing_id,
+                    name=ln.name,
+                    qty=qty,
+                    unit=ln.unit,
+                    unit_price=unit_price,
+                    cost_price=0,
+                    amount=amount,
+                    sort_order=i,
+                    created_at=now,
+                )
+            )
+
+        inserted += 1
+
+    db.commit()
+    return BillingImportOut(inserted=inserted)
+
 
 # =========================
 # GET single
