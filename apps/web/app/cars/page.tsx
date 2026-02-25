@@ -84,15 +84,34 @@ export default function CarsPage() {
       <ul>
         {cars.map((c) => (
           <li key={c.id}>
-            <div>Name: {formatText(c.name)}</div>
-            <div>Maker: {formatText(c.maker)}</div>
-            <div>Model: {formatText(c.model)}</div>
+            <div>Stock No: {formatText(c.stockNo)}</div>
+            <div>
+              Car: {formatText(c.make ?? c.maker)} {formatText(c.model)}
+            </div>
             <div>Year: {formatYear(c.year)}</div>
-            <div>Plate: {formatText(c.plateNo)}</div>
+            <div>Mileage: {c.mileage ?? "-"}</div>
+            <div>Status: {formatText(c.status)}</div>
+            <div>VIN: {formatText(c.vin)}</div>
+
+            <div>
+              Expected Sell:{" "}
+              {c.expectedSellPrice !== null && c.expectedSellPrice !== undefined
+                ? `¥${c.expectedSellPrice.toLocaleString()}`
+                 : "-"}
+            </div>
+
+            <div>
+              Profit:{" "}
+              {c.expectedProfit !== null && c.expectedProfit !== undefined
+                ? `¥${c.expectedProfit.toLocaleString()}`
+                : "-"}
+              {" "}
+              {c.expectedProfitRate !== null && c.expectedProfitRate !== undefined
+                ? `(${(c.expectedProfitRate * 100).toFixed(1)}%)`
+                : ""}
+            </div>
+
             <button onClick={() => onDelete(c.id)}>Delete</button>
           </li>
         ))}
       </ul>
-    </div>
-  );
-}
