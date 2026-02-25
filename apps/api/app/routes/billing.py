@@ -221,7 +221,14 @@ def create_billing(
     actor_store_id = _get_actor_store_id(request)
     store_id = actor_store_id or body.store_id
 
-    subtotal, tax_total, total = _recalc(body.lines)
+    tax_rate, tax_mode, tax_rounding = _get_tax_defaults(db)
+
+    subtotal, tax_total, total = _recalc(
+    body.lines,
+    tax_rate,
+    tax_mode,
+    tax_rounding,
+)
 
     issued_at = body.issued_at
     if (body.status or "draft") == "issued" and issued_at is None:
