@@ -315,7 +315,6 @@ export default function BillingPage() {
                   <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
                     <Link href={`/billing/${d.id}`}>{d.id}</Link>
                   </td>
-                  </td>
                   <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
                   <td>{d.customer_name ?? "-"}</td>
                   <td>{d.kind}</td>
