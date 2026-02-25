@@ -237,3 +237,20 @@ def get_billing(
         raise HTTPException(status_code=404, detail="Not found")
 
     return _to_out(doc)
+
+
+@router.get("/billing/{billing_id}/lines", response_model=List[BillingLineOut])
+def list_billing_lines(
+    billing_id: str,
+    db: Session = Depends(get_db),
+) -> List[BillingLineOut]:
+
+    stmt = (
+        select(BillingLineORM)
+        .where(BillingLineORM.billing_id == billing_id)
+        .order_by(BillingLineORM.sort_order.asc())
+    )
+
+    rows = db.execute(stmt).scalars().all()
+
+    return rows
