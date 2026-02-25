@@ -355,3 +355,50 @@ export async function listCarValuations(
 
   return Array.isArray(data.items) ? data.items.map(normalizeValuation) : [];
 }
+
+
+// ============================
+// Valuation Calculate API
+// ============================
+
+export type ValuationCalculateRequest = {
+  make: string
+  model: string
+  grade: string
+  year: number
+  mileage: number
+}
+
+export type ValuationCalculateResult = {
+  marketLow: number
+  marketMedian: number
+  marketHigh: number
+  buyCapPrice: number
+  recommendedPrice: number
+  expectedProfit: number
+  expectedProfitRate: number
+}
+
+function normalizeCalculateResult(raw: any): ValuationCalculateResult {
+  return {
+    marketLow: Number(raw.market_low ?? 0),
+    marketMedian: Number(raw.market_median ?? 0),
+    marketHigh: Number(raw.market_high ?? 0),
+    buyCapPrice: Number(raw.buy_cap_price ?? 0),
+    recommendedPrice: Number(raw.recommended_price ?? 0),
+    expectedProfit: Number(raw.expected_profit ?? 0),
+    expectedProfitRate: Number(raw.expected_profit_rate ?? 0),
+  }
+}
+
+export async function calculateValuation(
+  token: string,
+  payload: ValuationCalculateRequest
+): Promise<ValuationCalculateResult> {
+  const res = await apiFetch<any>("/api/v1/valuation/calculate", {
+    method: "POST",
+    token,
+    body: payload,
+  })
+  return normalizeCalculateResult(res)
+}
