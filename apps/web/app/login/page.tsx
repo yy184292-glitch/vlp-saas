@@ -14,10 +14,10 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // If already logged in, go to /cars
+  // 既にログイン済みなら dashboardへ
   useEffect(() => {
     const token = getAccessToken();
-    if (token) router.replace("/cars");
+    if (token) router.replace("/dashboard");
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -27,14 +27,15 @@ export default function LoginPage() {
 
     try {
       const lr = await login(email, password);
+
       setAccessToken(lr.access_token);
 
-      // 永続的な堅牢性: 保存できない環境は黙殺せず止める
       if (!getAccessToken()) {
         throw new Error("Token could not be saved. Please allow localStorage.");
       }
 
-      router.replace("/cars");
+      // ★変更点：dashboardへ
+      router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -44,7 +45,9 @@ export default function LoginPage() {
 
   return (
     <main style={{ margin: "48px auto", padding: 16, maxWidth: 420 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>Login</h1>
+      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
+        VLP System Login
+      </h1>
 
       {error && (
         <div
