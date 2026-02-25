@@ -333,7 +333,7 @@ def save_valuation_to_car(
     """
     査定を計算して
     - cars を更新
-    - car_valuations に履歴を保存
+    - car_valuations に履歴を保存（market_low / median / high 含む）
     を同一トランザクションで実行
     """
     car = _get_car_owned(db, car_id, current_user)
@@ -349,6 +349,9 @@ def save_valuation_to_car(
         )
 
     try:
+        # ----------------------------
+        # 査定計算
+        # ----------------------------
         result = calculate_valuation(
             db=db,
             store_id=current_user.store_id,
@@ -360,6 +363,13 @@ def save_valuation_to_car(
         )
 
         now = datetime.now(timezone.utc)
+
+        # ----------------------------
+        # 値取得（market含む）
+        # ----------------------------
+        market_low = int(result["market_low"])
+        market_median = int(result["market_median"])
+        market_high = int(result["market_high"])
 
         buy_price = int(result["buy_cap_price"])
         sell_price = int(result["recommended_price"])
@@ -378,15 +388,21 @@ def save_valuation_to_car(
         db.add(car)
 
         # ----------------------------
-        # 履歴追加
+        # 履歴追加（market価格も保存）
         # ----------------------------
         history = CarValuation(
             car_id=car.id,
             store_id=current_user.store_id,
+
+            market_low=market_low,
+            market_median=market_median,
+            market_high=market_high,
+
             buy_price=buy_price,
             sell_price=sell_price,
             profit=profit,
             profit_rate=profit_rate,
+
             valuation_at=now,
         )
 
@@ -409,62 +425,6 @@ def save_valuation_to_car(
             status_code=500,
             detail=f"save_valuation_to_car failed: {type(e).__name__}: {str(e)}",
         ) from None
-
-
-# =========================================================
-# Valuation History (NEW): GET /cars/{car_id}/valuations
-# =========================================================
-@router.get("/{car_id}/valuations", response_model=CarValuationsListResponse)
-def list_car_valuations(
-    car_id: UUID,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-    limit: int = 20,
-    offset: int = 0,
-):
-    """
-    査定履歴一覧（テナント分離: store_id）。
-    pagination: limit/offset
-    """
-    limit, offset = _clamp_limit_offset(limit, offset)
-
-    # 車が自分のstoreのものか確認（403/404）
-    _ = _get_car_owned(db, car_id, current_user)
-
-    try:
-        total_stmt = (
-            select(func.count())
-            .select_from(CarValuation)
-            .where(
-                CarValuation.car_id == car_id,
-                CarValuation.store_id == current_user.store_id,
-            )
-        )
-        total = db.execute(total_stmt).scalar_one()
-
-        items_stmt = (
-            select(CarValuation)
-            .where(
-                CarValuation.car_id == car_id,
-                CarValuation.store_id == current_user.store_id,
-            )
-            .order_by(desc(CarValuation.valuation_at), desc(CarValuation.id))
-            .limit(limit)
-            .offset(offset)
-        )
-        items = db.execute(items_stmt).scalars().all()
-
-        return CarValuationsListResponse(
-            items=items,
-            meta=PageMeta(limit=limit, offset=offset, total=total),
-        )
-    except Exception as e:
-        logger.exception("list_car_valuations failed")
-        raise HTTPException(
-            status_code=500,
-            detail=f"list_car_valuations failed: {type(e).__name__}: {str(e)}",
-        ) from None
-
 
 from datetime import datetime
 from uuid import UUID
