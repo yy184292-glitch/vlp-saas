@@ -457,3 +457,75 @@ def list_car_valuations(
             status_code=500,
             detail=f"list_car_valuations failed: {type(e).__name__}: {str(e)}",
         ) from None
+
+
+from datetime import datetime
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict
+from sqlalchemy import desc, func, select
+
+
+class PageMeta(BaseModel):
+    limit: int
+    offset: int
+    total: int
+
+
+class CarValuationRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    car_id: UUID
+    store_id: UUID
+    buy_price: int
+    sell_price: int
+    profit: int
+    profit_rate: float
+    valuation_at: datetime
+    created_at: datetime
+
+
+class CarValuationsListResponse(BaseModel):
+    items: list[CarValuationRead]
+    meta: PageMeta
+
+
+@router.get("/{car_id}/valuations", response_model=CarValuationsListResponse)
+def list_car_valuations(
+    car_id: UUID,
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    car = db.get(Car, car_id)
+    if not car:
+        raise HTTPException(status_code=404, detail="Car not found")
+    if car.store_id != current_user.store_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    total = db.execute(
+        select(func.count()).select_from(CarValuation).where(
+            CarValuation.car_id == car_id,
+            CarValuation.store_id == current_user.store_id,
+        )
+    ).scalar_one()
+
+    items = db.execute(
+        select(CarValuation).where(
+            CarValuation.car_id == car_id,
+            CarValuation.store_id == current_user.store_id,
+        ).order_by(
+            desc(CarValuation.valuation_at),
+            desc(CarValuation.created_at),
+        ).limit(limit).offset(offset)
+    ).scalars().all()
+
+    return CarValuationsListResponse(
+        items=items,
+        meta=PageMeta(limit=limit, offset=offset, total=total),
+    )
