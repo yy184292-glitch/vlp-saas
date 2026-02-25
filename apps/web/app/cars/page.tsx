@@ -43,15 +43,23 @@ export default function CarsPage() {
   }, [router]);
 
   const onCreate = async () => {
-    setError("");
-    const input: CarInput = { name: "demo", year: 2024 };
-    try {
-      const created = await createCar(input);
-      setCars((prev) => [created, ...prev]);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to create");
-    }
+  setError("");
+
+  const input: CarInput = {
+    stock_no: `demo_${Date.now()}`,
+    make: "toyota",
+    model: "prius",
+    year: 2020,
+    mileage: 50000,
   };
+
+  try {
+    const created = await createCar(input);
+    setCars((prev) => [created, ...prev]);
+  } catch (e) {
+    setError(e instanceof Error ? e.message : "Failed to create");
+  }
+};
 
   const onDelete = async (id: string) => {
     setError("");
