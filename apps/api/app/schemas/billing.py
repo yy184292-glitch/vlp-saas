@@ -51,3 +51,21 @@ class BillingOut(BaseModel):
 
     created_at: datetime
     updated_at: datetime
+
+
+from typing import Any
+
+class BillingImportItemIn(BaseModel):
+    id: str | None = None
+    createdAt: str | None = None
+    customerName: str | None = None
+    total: int | None = None
+    status: BillingStatus = "draft"
+    kind: BillingKind = "invoice"
+    lines: list[dict[str, Any]] = Field(default_factory=list)
+
+class BillingImportIn(BaseModel):
+    items: list[BillingImportItemIn] = Field(default_factory=list)
+
+class BillingImportOut(BaseModel):
+    inserted: int
