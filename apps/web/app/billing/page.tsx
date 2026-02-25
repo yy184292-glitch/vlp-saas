@@ -7,11 +7,16 @@ type BillingKind = "estimate" | "invoice";
 
 type BillingDoc = {
   id: string;
-  created_at: string;
+  store_id: string | null;
+  kind: string;
+  status: string;
   customer_name: string | null;
+  subtotal: number;
+  tax_total: number;
   total: number;
-  status: BillingStatus;
-  kind: BillingKind;
+  issued_at: string | null;
+  created_at: string;
+  updated_at: string;
 };
 
 type BillingLineIn = {
@@ -25,22 +30,25 @@ type BillingLineIn = {
 type BillingCreateIn = {
   kind: BillingKind;
   status: BillingStatus;
+  store_id?: string | null;
   customer_name?: string;
   lines: BillingLineIn[];
   meta?: Record<string, unknown>;
 };
 
-const API_BASE =
-  (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
+const STORAGE_KEY = "vlp_billing_drafts_v1";
 
-// ==========================
-// utils
-// ==========================
+const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
 
-async function fetchJson<T>(
-  url: string,
-  init?: RequestInit
-): Promise<T> {
+function formatYen(n: number): string {
+  return new Intl.NumberFormat("ja-JP", {
+    style: "currency",
+    currency: "JPY",
+    maximumFractionDigits: 0,
+  }).format(Number.isFinite(n) ? n : 0);
+}
+
+async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -52,20 +60,10 @@ async function fetchJson<T>(
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(
-      `HTTP ${res.status}: ${text || res.statusText}`
-    );
+    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
   }
 
   return (await res.json()) as T;
-}
-
-function formatYen(n: number): string {
-  return new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: "JPY",
-    maximumFractionDigits: 0,
-  }).format(n);
 }
 
 function safeNumber(v: unknown, fallback = 0): number {
@@ -73,391 +71,290 @@ function safeNumber(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-// ==========================
-// component
-// ==========================
+function parseLocalDrafts(): any[] {
+  const raw = localStorage.getItem(STORAGE_KEY);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function BillingPage() {
+  // DB list
   const [items, setItems] = useState<BillingDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  // form
+  // import state
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
+
+  // create form
   const [customerName, setCustomerName] = useState("");
-  const [kind, setKind] =
-    useState<BillingKind>("invoice");
-
-  const [lines, setLines] = useState<
-    BillingLineIn[]
-  >([{ name: "作業費", qty: 1, unit_price: 0 }]);
-
+  const [kind, setKind] = useState<BillingKind>("invoice");
+  const [lines, setLines] = useState<BillingLineIn[]>([
+    { name: "作業費", qty: 1, unit_price: 10000 },
+  ]);
   const [saving, setSaving] = useState(false);
-  const [msg, setMsg] = useState<string | null>(
-    null
-  );
-
-  // ==========================
-  // preview total
-  // ==========================
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   const previewTotal = useMemo(() => {
     return lines.reduce((sum, ln) => {
-      const qty = safeNumber(ln.qty);
-      const price =
-        ln.unit_price == null
-          ? 0
-          : safeNumber(ln.unit_price);
-      return sum + qty * price;
+      const qty = safeNumber(ln.qty, 0);
+      const unit = ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
+      return sum + Math.trunc(qty * unit);
     }, 0);
   }, [lines]);
-
-  // ==========================
-  // load list
-  // ==========================
 
   async function reload() {
     setLoading(true);
     setErr(null);
-
     try {
-      const data = await fetchJson<BillingDoc[]>(
-        `${API_BASE}/api/v1/billing?limit=100&offset=0`
-      );
-
+      const data = await fetchJson<BillingDoc[]>(`${API_BASE}/api/v1/billing?limit=100&offset=0`);
       setItems(data);
     } catch (e) {
-      setErr(
-        e instanceof Error
-          ? e.message
-          : "load failed"
-      );
+      setErr(e instanceof Error ? e.message : "Failed to load");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    reload();
+    void reload();
   }, []);
 
-  // ==========================
-  // form ops
-  // ==========================
-
-  function updateLine(
-    idx: number,
-    patch: Partial<BillingLineIn>
-  ) {
-    setLines((prev) =>
-      prev.map((x, i) =>
-        i === idx ? { ...x, ...patch } : x
-      )
-    );
+  function updateLine(idx: number, patch: Partial<BillingLineIn>) {
+    setLines((prev) => prev.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
   }
 
   function addLine() {
-    setLines((prev) => [
-      ...prev,
-      { name: "明細", qty: 1, unit_price: 0 },
-    ]);
+    setLines((prev) => [...prev, { name: "明細", qty: 1, unit_price: 0 }]);
   }
 
   function removeLine(idx: number) {
-    setLines((prev) =>
-      prev.filter((_, i) => i !== idx)
-    );
+    setLines((prev) => prev.filter((_, i) => i !== idx));
   }
-
-  // ==========================
-  // create billing
-  // ==========================
 
   async function createDraft() {
     setSaving(true);
-    setMsg(null);
+    setSaveMsg(null);
 
     try {
       const body: BillingCreateIn = {
         kind,
         status: "draft",
-        customer_name:
-          customerName.trim() || undefined,
-        lines: lines.map((ln) => ({
-          name: ln.name,
-          qty: safeNumber(ln.qty),
-          unit: ln.unit,
-          unit_price:
-            ln.unit_price == null
-              ? undefined
-              : safeNumber(ln.unit_price),
-          cost_price:
-            ln.cost_price == null
-              ? undefined
-              : safeNumber(ln.cost_price),
-        })),
-        meta: {
-          _ui: "billing-page",
-        },
+        customer_name: customerName.trim() || undefined,
+        lines: lines
+          .map((ln) => ({
+            name: (ln.name || "").trim(),
+            qty: safeNumber(ln.qty, 0),
+            unit: ln.unit,
+            unit_price: ln.unit_price == null ? undefined : Math.trunc(safeNumber(ln.unit_price, 0)),
+            cost_price: ln.cost_price == null ? undefined : Math.trunc(safeNumber(ln.cost_price, 0)),
+          }))
+          .filter((ln) => ln.name.length > 0),
+        meta: { _ui: "billing-page" },
       };
 
-      await fetchJson(
-        `${API_BASE}/api/v1/billing`,
-        {
-          method: "POST",
-          body: JSON.stringify(body),
-        }
-      );
+      await fetchJson(`${API_BASE}/api/v1/billing`, {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
 
-      setMsg("保存しました");
-
+      setSaveMsg("DBへ保存しました");
       setCustomerName("");
-      setLines([
-        {
-          name: "作業費",
-          qty: 1,
-          unit_price: 0,
-        },
-      ]);
-
-      reload();
+      setLines([{ name: "作業費", qty: 1, unit_price: 10000 }]);
+      await reload();
     } catch (e) {
-      setMsg(
-        e instanceof Error
-          ? e.message
-          : "save failed"
-      );
+      setSaveMsg(e instanceof Error ? e.message : "Save failed");
     } finally {
       setSaving(false);
     }
   }
 
-  // ==========================
-  // UI
-  // ==========================
+  async function importLocalStorageAndClear() {
+    const ok = confirm("localStorage の下書きをDBへ移行し、移行後に localStorage を削除します。よろしいですか？");
+    if (!ok) return;
+
+    setImporting(true);
+    setImportMsg(null);
+
+    try {
+      const items = parseLocalDrafts();
+      if (items.length === 0) {
+        setImportMsg("localStorage に移行対象がありません");
+        return;
+      }
+
+      // API は { items: [...] } を受け取る
+      const res = await fetchJson<{ inserted: number }>(`${API_BASE}/api/v1/billing/import`, {
+        method: "POST",
+        body: JSON.stringify({ items }),
+      });
+
+      // 成功したら localStorage を消す（最優先要件）
+      localStorage.removeItem(STORAGE_KEY);
+
+      setImportMsg(`DBへ移行しました (${res.inserted}件) / localStorage を削除しました`);
+      await reload();
+    } catch (e) {
+      setImportMsg(e instanceof Error ? e.message : "Import failed");
+    } finally {
+      setImporting(false);
+    }
+  }
 
   return (
     <main style={{ padding: 24 }}>
-      <h1>見積・請求（DB）</h1>
+      <h1 style={{ fontSize: 22, margin: 0 }}>見積・請求（DB）</h1>
 
-      {/* form */}
-      <div
-        style={{
-          border: "1px solid #ddd",
-          padding: 12,
-          marginTop: 12,
-        }}
-      >
-        <div>
-          顧客名:
-          <input
-            value={customerName}
-            onChange={(e) =>
-              setCustomerName(
-                e.target.value
-              )
-            }
-            style={{ marginLeft: 8 }}
-          />
-        </div>
+      <div style={{ marginTop: 14, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+        <h2 style={{ fontSize: 16, margin: 0 }}>下書きを作成（DB）</h2>
 
-        <div style={{ marginTop: 8 }}>
-          種別:
-          <select
-            value={kind}
-            onChange={(e) =>
-              setKind(
-                e.target
-                  .value as BillingKind
-              )
-            }
-            style={{ marginLeft: 8 }}
-          >
-            <option value="invoice">
-              invoice
-            </option>
-            <option value="estimate">
-              estimate
-            </option>
-          </select>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
+          <label>
+            顧客名：
+            <input
+              value={customerName}
+              onChange={(e) => setCustomerName(e.target.value)}
+              style={{ marginLeft: 8 }}
+              placeholder="例）山田 太郎"
+            />
+          </label>
+
+          <label>
+            種別：
+            <select value={kind} onChange={(e) => setKind(e.target.value as BillingKind)} style={{ marginLeft: 8 }}>
+              <option value="invoice">invoice</option>
+              <option value="estimate">estimate</option>
+            </select>
+          </label>
+
+          <div style={{ marginLeft: "auto" }}>
+            合計（概算）：<strong>{formatYen(previewTotal)}</strong>
+          </div>
         </div>
 
         <div style={{ marginTop: 12 }}>
-          <button onClick={addLine}>
-            明細追加
-          </button>
+          <button onClick={addLine}>明細を追加</button>
         </div>
 
-        <table
-          style={{
-            width: "100%",
-            marginTop: 8,
-          }}
-        >
-          <thead>
-            <tr>
-              <th>名称</th>
-              <th>数量</th>
-              <th>単価</th>
-              <th>小計</th>
-              <th />
-            </tr>
-          </thead>
+        <div style={{ marginTop: 12 }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th align="left">名称</th>
+                <th align="right">数量</th>
+                <th align="right">単価</th>
+                <th align="right">小計</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {lines.map((ln, idx) => {
+                const qty = safeNumber(ln.qty, 0);
+                const unit = ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
+                const amount = Math.trunc(qty * unit);
 
-          <tbody>
-            {lines.map((ln, idx) => {
-              const amount =
-                safeNumber(ln.qty) *
-                safeNumber(
-                  ln.unit_price
+                return (
+                  <tr key={idx}>
+                    <td>
+                      <input
+                        value={ln.name}
+                        onChange={(e) => updateLine(idx, { name: e.target.value })}
+                        style={{ width: "100%" }}
+                      />
+                    </td>
+                    <td align="right">
+                      <input
+                        value={ln.qty}
+                        onChange={(e) => updateLine(idx, { qty: safeNumber(e.target.value, 0) })}
+                        style={{ width: 80, textAlign: "right" }}
+                      />
+                    </td>
+                    <td align="right">
+                      <input
+                        value={ln.unit_price ?? ""}
+                        onChange={(e) =>
+                          updateLine(idx, { unit_price: e.target.value === "" ? undefined : safeNumber(e.target.value, 0) })
+                        }
+                        style={{ width: 120, textAlign: "right" }}
+                      />
+                    </td>
+                    <td align="right">{formatYen(amount)}</td>
+                    <td align="right">
+                      <button onClick={() => removeLine(idx)} disabled={lines.length <= 1}>
+                        削除
+                      </button>
+                    </td>
+                  </tr>
                 );
-
-              return (
-                <tr key={idx}>
-                  <td>
-                    <input
-                      value={ln.name}
-                      onChange={(e) =>
-                        updateLine(idx, {
-                          name: e.target
-                            .value,
-                        })
-                      }
-                    />
-                  </td>
-
-                  <td>
-                    <input
-                      value={ln.qty}
-                      onChange={(e) =>
-                        updateLine(idx, {
-                          qty: safeNumber(
-                            e.target
-                              .value
-                          ),
-                        })
-                      }
-                    />
-                  </td>
-
-                  <td>
-                    <input
-                      value={
-                        ln.unit_price ??
-                        ""
-                      }
-                      onChange={(e) =>
-                        updateLine(idx, {
-                          unit_price:
-                            safeNumber(
-                              e.target
-                                .value
-                            ),
-                        })
-                      }
-                    />
-                  </td>
-
-                  <td>
-                    {formatYen(
-                      amount
-                    )}
-                  </td>
-
-                  <td>
-                    <button
-                      onClick={() =>
-                        removeLine(
-                          idx
-                        )
-                      }
-                    >
-                      削除
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-
-        <div style={{ marginTop: 8 }}>
-          合計:
-          <b>
-            {" "}
-            {formatYen(
-              previewTotal
-            )}
-          </b>
+              })}
+            </tbody>
+          </table>
         </div>
 
-        <button
-          onClick={createDraft}
-          disabled={saving}
-          style={{
-            marginTop: 8,
-          }}
-        >
-          {saving
-            ? "保存中..."
-            : "DBへ保存"}
+        <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center" }}>
+          <button onClick={createDraft} disabled={saving}>
+            {saving ? "保存中..." : "下書きをDBへ保存"}
+          </button>
+          {saveMsg && <span>{saveMsg}</span>}
+        </div>
+      </div>
+
+      <div style={{ marginTop: 14, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+        <h2 style={{ fontSize: 16, margin: 0 }}>localStorage → DB 移行</h2>
+
+        <p style={{ marginTop: 8, marginBottom: 8, color: "#555", fontSize: 13 }}>
+          ※「Import」を押すと localStorage の下書きをDBへ移行し、成功したら localStorage を削除します（運用前想定）。
+        </p>
+
+        <button onClick={importLocalStorageAndClear} disabled={importing}>
+          {importing ? "移行中..." : "Import（DBへ移行 → localStorage削除）"}
         </button>
 
-        {msg && (
-          <div style={{ marginTop: 8 }}>
-            {msg}
-          </div>
+        {importMsg && <p style={{ marginTop: 10 }}>{importMsg}</p>}
+      </div>
+
+      <div style={{ marginTop: 20 }}>
+        <h2 style={{ fontSize: 16 }}>最近の請求（DB）</h2>
+
+        {loading && <p>Loading...</p>}
+        {err && <p style={{ color: "crimson" }}>読み込みエラー: {err}</p>}
+        {!loading && !err && items.length === 0 && <p>データがありません</p>}
+
+        {!loading && !err && items.length > 0 && (
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr>
+                <th align="left">ID</th>
+                <th align="left">作成日</th>
+                <th align="left">顧客</th>
+                <th align="left">種別</th>
+                <th align="left">状態</th>
+                <th align="right">合計</th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((d) => (
+                <tr key={d.id}>
+                  <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{d.id}</td>
+                  <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
+                  <td>{d.customer_name ?? "-"}</td>
+                  <td>{d.kind}</td>
+                  <td>{d.status}</td>
+                  <td align="right">{formatYen(d.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         )}
       </div>
 
-      {/* list */}
-
-      <h2 style={{ marginTop: 24 }}>
-        DB一覧
-      </h2>
-
-      {loading && <div>Loading...</div>}
-
-      {err && (
-        <div style={{ color: "red" }}>
-          {err}
-        </div>
-      )}
-
-      {!loading && !err && (
-        <table>
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>顧客</th>
-              <th>状態</th>
-              <th>合計</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {items.map((d) => (
-              <tr key={d.id}>
-                <td>{d.id}</td>
-
-                <td>
-                  {d.customer_name ??
-                    "-"}
-                </td>
-
-                <td>
-                  {d.status}
-                </td>
-
-                <td>
-                  {formatYen(
-                    d.total
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <p style={{ marginTop: 20, fontSize: 12, color: "#666" }}>localStorage → DB 移行対応済</p>
     </main>
   );
 }
