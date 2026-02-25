@@ -313,7 +313,8 @@ export default function BillingPage() {
               {items.map((d) => (
                 <tr key={d.id}>
                   <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                    {d.id}
+                    <Link href={`/billing/${d.id}`}>{d.id}</Link>
+                  </td>
                   </td>
                   <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
                   <td>{d.customer_name ?? "-"}</td>
