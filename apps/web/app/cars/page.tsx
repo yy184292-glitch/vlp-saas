@@ -1,14 +1,23 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import type { Car, CarValuation } from "@/lib/api";
-import { createCar, deleteCar, listCars, listCarValuations } from "@/lib/api";
+import type { Car, CarValuation, ValuationCalculateResult } from "@/lib/api";
+import { calculateValuation, createCar, deleteCar, listCars, listCarValuations } from "@/lib/api";
 
 function formatText(v: string | null | undefined) {
   return v && v.trim() ? v : "-";
 }
 function formatYear(v: number | null | undefined) {
   return v !== null && v !== undefined ? String(v) : "-";
+}
+
+function fmtYen(n: number) {
+  return `¥${n.toLocaleString()}`;
+}
+
+function fmtPercent(rate: number) {
+  // rate: 0.1234 -> 12.3%
+  return `${(rate * 100).toFixed(1)}%`;
 }
 
 export default function CarsPage() {
@@ -22,6 +31,12 @@ export default function CarsPage() {
   const [valuations, setValuations] = useState<CarValuation[]>([]);
   const [valuationsLoading, setValuationsLoading] = useState(false);
   const [selectedValuation, setSelectedValuation] = useState<CarValuation | null>(null);
+
+  // 計算モーダル
+  const [calcOpen, setCalcOpen] = useState(false);
+  const [calcLoading, setCalcLoading] = useState(false);
+  const [calcError, setCalcError] = useState("");
+  const [calcResult, setCalcResult] = useState<ValuationCalculateResult | null>(null);
 
   const selectedCar = useMemo(
     () => (selectedId ? cars.find((c) => c.id === selectedId) ?? null : null),
@@ -110,7 +125,47 @@ export default function CarsPage() {
     }
   };
 
-  const fmtYen = (n: number) => `¥${n.toLocaleString()}`;
+  const closeCalcModal = () => {
+    setCalcOpen(false);
+    setCalcLoading(false);
+    setCalcError("");
+    setCalcResult(null);
+  };
+
+  const onCalculate = async () => {
+    if (!selectedCar) return;
+
+    // API仕様: { make, model, grade, year, mileage } （Swagger準拠）
+    const make = (selectedCar.make ?? selectedCar.maker ?? "").trim();
+    const model = (selectedCar.model ?? "").trim();
+
+    // grade は Car 型に無い可能性があるので安全に取得（無ければ空文字）
+    const grade = String((selectedCar as unknown as { grade?: string | null }).grade ?? "").trim();
+
+    // year/mileage は必須なので null/undefined の場合に備える
+    const year = typeof selectedCar.year === "number" ? selectedCar.year : 0;
+    const mileage = typeof selectedCar.mileage === "number" ? selectedCar.mileage : 0;
+
+    setCalcOpen(true);
+    setCalcLoading(true);
+    setCalcError("");
+    setCalcResult(null);
+
+    try {
+      const res = await calculateValuation({
+        make,
+        model,
+        grade,
+        year,
+        mileage,
+      });
+      setCalcResult(res);
+    } catch (e) {
+      setCalcError(e instanceof Error ? e.message : "Failed to calculate valuation");
+    } finally {
+      setCalcLoading(false);
+    }
+  };
 
   return (
     <div style={{ padding: 16 }}>
@@ -151,12 +206,10 @@ export default function CarsPage() {
                   </div>
                   <div style={{ color: "#666", fontSize: 12 }}>
                     Profit:{" "}
-                    {c.expectedProfit !== null && c.expectedProfit !== undefined
-                      ? fmtYen(c.expectedProfit)
-                      : "-"}
+                    {c.expectedProfit !== null && c.expectedProfit !== undefined ? fmtYen(c.expectedProfit) : "-"}
                     {"  "}
                     {c.expectedProfitRate !== null && c.expectedProfitRate !== undefined
-                      ? `(${(c.expectedProfitRate * 100).toFixed(1)}%)`
+                      ? `(${fmtPercent(c.expectedProfitRate)})`
                       : ""}
                   </div>
                 </li>
@@ -186,9 +239,14 @@ export default function CarsPage() {
                   <div style={{ color: "#666" }}>{formatText(selectedCar.stockNo)}</div>
                 </div>
 
-                <button onClick={onDeleteSelected} style={{ color: "#b00020" }}>
-                  Delete
-                </button>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <button onClick={onCalculate} disabled={calcLoading}>
+                    査定（計算）
+                  </button>
+                  <button onClick={onDeleteSelected} style={{ color: "#b00020" }}>
+                    Delete
+                  </button>
+                </div>
               </div>
 
               {/* tabs */}
@@ -243,7 +301,7 @@ export default function CarsPage() {
                       ? fmtYen(selectedCar.expectedProfit)
                       : "-"}{" "}
                     {selectedCar.expectedProfitRate !== null && selectedCar.expectedProfitRate !== undefined
-                      ? `(${(selectedCar.expectedProfitRate * 100).toFixed(1)}%)`
+                      ? `(${fmtPercent(selectedCar.expectedProfitRate)})`
                       : ""}
                   </div>
                   <div>Valuation At: {formatText(selectedCar.valuationAt)}</div>
@@ -267,12 +325,9 @@ export default function CarsPage() {
                           }}
                         >
                           <div style={{ fontWeight: 700 }}>
-                            売価 {fmtYen(v.sellPrice)} / 利益 {fmtYen(v.profit)}（
-                            {(v.profitRate * 100).toFixed(1)}%）
+                            売価 {fmtYen(v.sellPrice)} / 利益 {fmtYen(v.profit)}（{fmtPercent(v.profitRate)}）
                           </div>
-                          <div style={{ color: "#666", fontSize: 12 }}>
-                            valuation_at: {v.valuationAt}
-                          </div>
+                          <div style={{ color: "#666", fontSize: 12 }}>valuation_at: {v.valuationAt}</div>
                         </li>
                       ))}
                     </ul>
@@ -280,7 +335,7 @@ export default function CarsPage() {
                 </>
               )}
 
-              {/* ポップアップ（簡易モーダル） */}
+              {/* ポップアップ（簡易モーダル）: 査定履歴詳細 */}
               {selectedValuation ? (
                 <div
                   onClick={() => setSelectedValuation(null)}
@@ -321,7 +376,7 @@ export default function CarsPage() {
                     <div>Buy: {fmtYen(selectedValuation.buyPrice)}</div>
                     <div>Sell: {fmtYen(selectedValuation.sellPrice)}</div>
                     <div>Profit: {fmtYen(selectedValuation.profit)}</div>
-                    <div>Profit Rate: {(selectedValuation.profitRate * 100).toFixed(1)}%</div>
+                    <div>Profit Rate: {fmtPercent(selectedValuation.profitRate)}</div>
 
                     <hr style={{ margin: "12px 0" }} />
 
@@ -331,6 +386,90 @@ export default function CarsPage() {
                     <div style={{ marginTop: 12, color: "#666", fontSize: 12 }}>
                       ※ 下限/中央値/上限は次のステップでDB保存してここに表示できるようにします
                     </div>
+                  </div>
+                </div>
+              ) : null}
+
+              {/* ポップアップ（簡易モーダル）: 査定（計算）結果 */}
+              {calcOpen ? (
+                <div
+                  onClick={closeCalcModal}
+                  style={{
+                    position: "fixed",
+                    inset: 0,
+                    background: "rgba(0,0,0,0.4)",
+                    display: "flex",
+                    justifyContent: "center",
+                    alignItems: "center",
+                    padding: 16,
+                  }}
+                >
+                  <div
+                    onClick={(e) => e.stopPropagation()}
+                    style={{
+                      width: "min(560px, 100%)",
+                      background: "#fff",
+                      borderRadius: 12,
+                      padding: 16,
+                      border: "1px solid #ddd",
+                    }}
+                  >
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: 16 }}>査定結果（計算）</div>
+                      <button onClick={closeCalcModal}>Close</button>
+                    </div>
+
+                    <hr style={{ margin: "12px 0" }} />
+
+                    {calcLoading ? <div>Calculating...</div> : null}
+                    {calcError ? <div style={{ color: "red" }}>{calcError}</div> : null}
+
+                    {!calcLoading && !calcError && calcResult ? (
+                      <>
+                        <div style={{ marginBottom: 12 }}>
+                          <div style={{ color: "#666", fontSize: 12 }}>相場レンジ</div>
+                          <div style={{ fontSize: 18, fontWeight: 800 }}>
+                            {fmtYen(calcResult.marketLow)} 〜 {fmtYen(calcResult.marketHigh)}
+                          </div>
+                          <div style={{ color: "#666" }}>中央値: {fmtYen(calcResult.marketMedian)}</div>
+                        </div>
+
+                        <hr style={{ margin: "12px 0" }} />
+
+                        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                          <div>
+                            <div style={{ color: "#666", fontSize: 12 }}>買い上限（buy_cap_price）</div>
+                            <div style={{ fontWeight: 700 }}>{fmtYen(calcResult.buyCapPrice)}</div>
+                          </div>
+
+                          <div>
+                            <div style={{ color: "#666", fontSize: 12 }}>推奨価格（recommended_price）</div>
+                            <div style={{ fontWeight: 700 }}>{fmtYen(calcResult.recommendedPrice)}</div>
+                          </div>
+
+                          <div>
+                            <div style={{ color: "#666", fontSize: 12 }}>想定利益（expected_profit）</div>
+                            <div style={{ fontWeight: 700 }}>{fmtYen(calcResult.expectedProfit)}</div>
+                          </div>
+
+                          <div>
+                            <div style={{ color: "#666", fontSize: 12 }}>想定利益率（expected_profit_rate）</div>
+                            <div style={{ fontWeight: 700 }}>{fmtPercent(calcResult.expectedProfitRate)}</div>
+                          </div>
+                        </div>
+
+                        <div style={{ marginTop: 12, color: "#666", fontSize: 12 }}>
+                          ※ DB migration 完了後に「保存（cars更新 + car_valuations履歴追加）」を有効化します
+                        </div>
+                      </>
+                    ) : null}
                   </div>
                 </div>
               ) : null}
