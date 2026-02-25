@@ -12,7 +12,13 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.billing import BillingDocumentORM, BillingLineORM
-from app.schemas.billing import BillingCreateIn, BillingOut
+from app.schemas.billing import (
+    BillingCreateIn,
+    BillingOut,
+    BillingImportIn,
+    BillingImportOut,
+    BillingLineIn,
+)
 
 router = APIRouter(tags=["billing"])
 
@@ -114,6 +120,109 @@ def create_billing(
     db.refresh(doc)
 
     return _to_out(doc)
+
+
+@router.post("/billing/import", response_model=BillingImportOut)
+def import_billing(
+    body: BillingImportIn,
+    db: Session = Depends(get_db),
+) -> BillingImportOut:
+    """
+    localStorage の items 配列を受け取り、DBへ移行する。
+    成功したら inserted 件数を返す。
+    """
+    now = _utcnow()
+    inserted = 0
+
+    for it in body.items:
+        # lines を BillingLineIn に寄せる（unitPrice / unit_price 両対応）
+        lines_in: list[BillingLineIn] = []
+        for raw in (it.lines or []):
+            if not isinstance(raw, dict):
+                continue
+
+            name = str(raw.get("name") or "明細").strip()
+            if not name:
+                continue
+
+            try:
+                qty = float(raw.get("qty") or 0)
+            except Exception:
+                qty = 0.0
+
+            unit_price_raw = raw.get("unit_price")
+            if unit_price_raw is None:
+                unit_price_raw = raw.get("unitPrice")
+
+            try:
+                unit_price = int(unit_price_raw) if unit_price_raw is not None else 0
+            except Exception:
+                unit_price = 0
+
+            # unit は任意
+            unit = raw.get("unit")
+            unit_s = str(unit).strip() if unit is not None else None
+
+            lines_in.append(
+                BillingLineIn(
+                    name=name,
+                    qty=qty,
+                    unit=unit_s,
+                    unit_price=unit_price,
+                )
+            )
+
+        # subtotal 算出
+        subtotal = 0
+        for ln in lines_in:
+            subtotal += int(float(ln.qty or 0) * int(ln.unit_price or 0))
+
+        # meta（import印を付ける）
+        meta_json = json.loads(json.dumps({"_import": "localStorage"}))
+
+        billing_id = uuid4()
+
+        doc = BillingDocumentORM(
+            id=billing_id,
+            store_id=None,
+            kind=it.kind or "invoice",
+            status=it.status or "draft",
+            customer_name=it.customerName,
+            subtotal=subtotal,
+            tax_total=0,
+            total=subtotal,
+            issued_at=now,
+            source_work_order_id=None,
+            meta=meta_json,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(doc)
+
+        for i, ln in enumerate(lines_in):
+            qty = float(ln.qty or 0)
+            unit_price = int(ln.unit_price or 0)
+            amount = int(qty * unit_price)
+
+            db.add(
+                BillingLineORM(
+                    id=uuid4(),
+                    billing_id=billing_id,
+                    name=ln.name,
+                    qty=qty,
+                    unit=ln.unit,
+                    unit_price=unit_price,
+                    cost_price=int(getattr(ln, "cost_price", 0) or 0),
+                    amount=amount,
+                    sort_order=i,
+                    created_at=now,
+                )
+            )
+
+        inserted += 1
+
+    db.commit()
+    return BillingImportOut(inserted=inserted)
 
 
 @router.get("/billing/{billing_id}", response_model=BillingOut)
