@@ -302,3 +302,56 @@ export async function login(email: string, password: string): Promise<LoginRespo
   }
   return data;
 }
+
+// ===== Domain: Valuations =====
+export type CarValuation = {
+  id: string;
+  carId: string;
+  storeId: string;
+
+  buyPrice: number;
+  sellPrice: number;
+  profit: number;
+  profitRate: number;
+
+  valuationAt: string;
+  createdAt: string;
+};
+
+type CarValuationsListResponse = {
+  items: unknown[];
+  meta: { limit: number; offset: number; total: number };
+};
+
+function normalizeValuation(raw: unknown): CarValuation {
+  const r = (raw ?? {}) as Record<string, unknown>;
+
+  return {
+    id: String(r.id),
+    carId: String(r.car_id),
+    storeId: String(r.store_id),
+
+    buyPrice: Number(r.buy_price),
+    sellPrice: Number(r.sell_price),
+    profit: Number(r.profit),
+    profitRate: Number(r.profit_rate),
+
+    valuationAt: String(r.valuation_at),
+    createdAt: String(r.created_at),
+  };
+}
+
+export async function listCarValuations(
+  carId: string,
+  args?: { limit?: number; offset?: number }
+): Promise<CarValuation[]> {
+  const limit = args?.limit ?? 50;
+  const offset = args?.offset ?? 0;
+
+  const data = await apiFetch<CarValuationsListResponse>(
+    `/api/v1/cars/${encodeURIComponent(carId)}/valuations?limit=${limit}&offset=${offset}`,
+    { method: "GET", auth: true }
+  );
+
+  return Array.isArray(data.items) ? data.items.map(normalizeValuation) : [];
+}
