@@ -144,21 +144,54 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 // ===== Domain: Cars =====
 export type Car = {
   id: string;
-  name: string | null;
+
+  stockNo: string | null;
+  status: string | null;
+
+  make: string | null;
   maker: string | null;
   model: string | null;
+  grade: string | null;
+
   year: number | null;
-  plateNo: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
+  mileage: number | null;
+
+  carNumber: string | null;
+  vin: string | null;
+  modelCode: string | null;
+  color: string | null;
+
+  expectedBuyPrice: number | null;
+  expectedSellPrice: number | null;
+  expectedProfit: number | null;
+  expectedProfitRate: number | null;
+  valuationAt: string | null;
+
+  createdAt: string | null;
+  updatedAt: string | null;
 };
 
 export type CarInput = {
-  name?: string | null;
+  stock_no?: string | null;
+  status?: string | null;
+
+  make?: string | null;
   maker?: string | null;
   model?: string | null;
+  grade?: string | null;
+
   year?: number | null;
-  plateNo?: string | null;
+  mileage?: number | null;
+
+  car_number?: string | null;
+  vin?: string | null;
+  model_code?: string | null;
+  color?: string | null;
+};
+
+type CarsListResponse = {
+  items: unknown[];
+  meta: { limit: number; offset: number; total: number };
 };
 
 function toNullableString(v: unknown): string | null {
@@ -181,22 +214,51 @@ function toNullableNumber(v: unknown): number | null {
 // APIのレスポンス形が多少ブレてもUIを安定させる（事故減）
 export function normalizeCar(raw: unknown): Car {
   const r = (raw ?? {}) as Record<string, unknown>;
+
   return {
-    id: toNullableString(r.id) ?? "", // idは必須。空ならUI側で弾く or ここでthrowでもOK
-    name: toNullableString(r.name),
+    id: toNullableString(r.id) ?? "",
+
+    stockNo: toNullableString(r.stock_no ?? r.stockNo),
+    status: toNullableString(r.status),
+
+    make: toNullableString(r.make),
     maker: toNullableString(r.maker),
     model: toNullableString(r.model),
+    grade: toNullableString(r.grade),
+
     year: toNullableNumber(r.year),
-    plateNo: toNullableString(r.plateNo ?? r.plate_no),
-    createdAt: toNullableString(r.createdAt ?? r.created_at),
-    updatedAt: toNullableString(r.updatedAt ?? r.updated_at),
+    mileage: toNullableNumber(r.mileage),
+
+    carNumber: toNullableString(r.car_number ?? r.carNumber),
+    vin: toNullableString(r.vin),
+    modelCode: toNullableString(r.model_code ?? r.modelCode),
+    color: toNullableString(r.color),
+
+    expectedBuyPrice: toNullableNumber(r.expected_buy_price ?? r.expectedBuyPrice),
+    expectedSellPrice: toNullableNumber(r.expected_sell_price ?? r.expectedSellPrice),
+    expectedProfit: toNullableNumber(r.expected_profit ?? r.expectedProfit),
+    expectedProfitRate: toNullableNumber(r.expected_profit_rate ?? r.expectedProfitRate),
+    valuationAt: toNullableString(r.valuation_at ?? r.valuationAt),
+
+    createdAt: toNullableString(r.created_at ?? r.createdAt),
+    updatedAt: toNullableString(r.updated_at ?? r.updatedAt),
   };
 }
 
-export async function listCars(): Promise<Car[]> {
-  const data = await apiFetch<unknown>("/api/v1/cars", { method: "GET", auth: true });
-  if (!Array.isArray(data)) return [];
-  return data.map(normalizeCar).filter((c) => c.id);
+export async function listCars(args?: { limit?: number; offset?: number }): Promise<{
+  items: Car[];
+  meta: { limit: number; offset: number; total: number };
+}> {
+  const limit = args?.limit ?? 50;
+  const offset = args?.offset ?? 0;
+
+  const data = await apiFetch<CarsListResponse>(`/api/v1/cars?limit=${limit}&offset=${offset}`, {
+    method: "GET",
+    auth: true,
+  });
+
+  const items = Array.isArray(data?.items) ? data.items.map(normalizeCar).filter((c) => c.id) : [];
+  return { items, meta: data.meta };
 }
 
 export async function createCar(input: CarInput): Promise<Car> {
