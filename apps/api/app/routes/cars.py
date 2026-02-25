@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.inspection import inspect
 from sqlalchemy.orm import Session
@@ -14,15 +16,53 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.dependencies.auth import get_current_user  # ✅ “唯一の正”を使う
 from app.models.car import Car
+from app.models.car_valuation import CarValuation
 from app.models.user import User
 from app.schemas.car import CarCreate, CarRead, CarUpdate
 from app.services.valuation_service import calculate_valuation
 
-from app.models.car_valuation import CarValuation
-
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/cars", tags=["cars"])
+
+
+# =========================================================
+# Response models (pagination + valuation history)
+#   ※ 追加ファイル無しで動くように routes 側に定義
+# =========================================================
+class PageMeta(BaseModel):
+    limit: int = Field(default=20, ge=1, le=200)
+    offset: int = Field(default=0, ge=0)
+    total: int = Field(ge=0)
+
+
+class CarsListResponse(BaseModel):
+    items: List[CarRead]
+    meta: PageMeta
+
+
+class CarValuationRead(BaseModel):
+    """
+    car_valuations（履歴）返却用。
+    CarValuation モデルに合わせてフィールドを定義。
+    """
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    car_id: UUID
+    store_id: UUID
+
+    buy_price: int
+    sell_price: int
+    profit: int
+    profit_rate: float
+
+    valuation_at: datetime
+
+
+class CarValuationsListResponse(BaseModel):
+    items: List[CarValuationRead]
+    meta: PageMeta
 
 
 # =========================================================
@@ -154,6 +194,55 @@ def _get_car_owned(db: Session, car_id: UUID, current_user: User) -> Car:
     return car
 
 
+def _clamp_limit_offset(limit: int, offset: int) -> tuple[int, int]:
+    # FastAPI側でバリデーションしても、念のため二重化
+    limit = max(1, min(int(limit), 200))
+    offset = max(0, int(offset))
+    return limit, offset
+
+
+# =========================================================
+# LIST (NEW): GET /cars
+# =========================================================
+@router.get("", response_model=CarsListResponse)
+def list_cars(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = 20,
+    offset: int = 0,
+):
+    """
+    在庫一覧（テナント分離: store_id）。
+    pagination: limit/offset
+    """
+    limit, offset = _clamp_limit_offset(limit, offset)
+
+    try:
+        total_stmt = select(func.count()).select_from(Car).where(Car.store_id == current_user.store_id)
+        total = db.execute(total_stmt).scalar_one()
+
+        items_stmt = (
+            select(Car)
+            .where(Car.store_id == current_user.store_id)
+            # 最新査定の車を上に（valuation_at が無い/NULLでも落ちないように id で保険）
+            .order_by(desc(getattr(Car, "valuation_at", Car.id)), desc(Car.id))
+            .limit(limit)
+            .offset(offset)
+        )
+        items = db.execute(items_stmt).scalars().all()
+
+        return CarsListResponse(
+            items=items,
+            meta=PageMeta(limit=limit, offset=offset, total=total),
+        )
+    except Exception as e:
+        logger.exception("list_cars failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"list_cars failed: {type(e).__name__}: {str(e)}",
+        ) from None
+
+
 # =========================================================
 # CRUD
 # =========================================================
@@ -240,7 +329,6 @@ def save_valuation_to_car(
     - car_valuations に履歴を保存
     を同一トランザクションで実行
     """
-
     car = _get_car_owned(db, car_id, current_user)
 
     make = getattr(car, "make", None) or getattr(car, "maker", None)
@@ -313,4 +401,59 @@ def save_valuation_to_car(
         raise HTTPException(
             status_code=500,
             detail=f"save_valuation_to_car failed: {type(e).__name__}: {str(e)}",
+        ) from None
+
+
+# =========================================================
+# Valuation History (NEW): GET /cars/{car_id}/valuations
+# =========================================================
+@router.get("/{car_id}/valuations", response_model=CarValuationsListResponse)
+def list_car_valuations(
+    car_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+    limit: int = 20,
+    offset: int = 0,
+):
+    """
+    査定履歴一覧（テナント分離: store_id）。
+    pagination: limit/offset
+    """
+    limit, offset = _clamp_limit_offset(limit, offset)
+
+    # 車が自分のstoreのものか確認（403/404）
+    _ = _get_car_owned(db, car_id, current_user)
+
+    try:
+        total_stmt = (
+            select(func.count())
+            .select_from(CarValuation)
+            .where(
+                CarValuation.car_id == car_id,
+                CarValuation.store_id == current_user.store_id,
+            )
+        )
+        total = db.execute(total_stmt).scalar_one()
+
+        items_stmt = (
+            select(CarValuation)
+            .where(
+                CarValuation.car_id == car_id,
+                CarValuation.store_id == current_user.store_id,
+            )
+            .order_by(desc(CarValuation.valuation_at), desc(CarValuation.id))
+            .limit(limit)
+            .offset(offset)
+        )
+        items = db.execute(items_stmt).scalars().all()
+
+        return CarValuationsListResponse(
+            items=items,
+            meta=PageMeta(limit=limit, offset=offset, total=total),
+        )
+    except Exception as e:
+        logger.exception("list_car_valuations failed")
+        raise HTTPException(
+            status_code=500,
+            detail=f"list_car_valuations failed: {type(e).__name__}: {str(e)}",
         ) from None
