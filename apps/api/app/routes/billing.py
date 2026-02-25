@@ -24,12 +24,29 @@ from app.schemas.billing import (
     BillingUpdateIn,
 )
 
+from decimal import Decimal
+
+from app.models.system_setting import SystemSettingORM
+
 router = APIRouter(tags=["billing"])
 
 
 # ============================================================
 # utils
 # ============================================================
+def _get_tax_defaults(db: Session) -> tuple[Decimal, str, str]:
+    row = db.execute(
+        select(SystemSettingORM).where(SystemSettingORM.key == "tax")
+    ).scalar_one_or_none()
+
+    if not row or not isinstance(row.value, dict):
+        return Decimal("0.10"), "exclusive", "floor"
+
+    rate = Decimal(str(row.value.get("rate", 0.10)))
+    mode = str(row.value.get("mode", "exclusive"))
+    rounding = str(row.value.get("rounding", "floor"))
+
+    return rate, mode, rounding
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -88,16 +105,28 @@ def _assert_store_scope(doc: BillingDocumentORM, actor_store_id: Optional[UUID])
         raise HTTPException(status_code=404, detail="Not found")
 
 
-def _recalc(lines: list[BillingLineIn]) -> tuple[int, int, int]:
+def _recalc(
+    lines: list[BillingLineIn],
+    tax_rate: Decimal,
+    tax_mode: str,
+    rounding: str,
+) -> tuple[int, int, int]:
+
     subtotal = 0
+
     for ln in lines:
         qty = float(ln.qty or 0)
         unit_price = int(ln.unit_price or 0)
         subtotal += int(qty * unit_price)
-    tax_total = 0
-    total = subtotal + tax_total
-    return subtotal, tax_total, total
 
+    if tax_mode == "inclusive":
+        tax_total = int(subtotal * tax_rate / (1 + tax_rate))
+        total = subtotal
+    else:
+        tax_total = int(subtotal * tax_rate)
+        total = subtotal + tax_total
+
+    return subtotal, tax_total, total
 
 # ============================================================
 # LIST
