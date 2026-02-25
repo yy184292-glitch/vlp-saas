@@ -207,42 +207,48 @@ def _clamp_limit_offset(limit: int, offset: int) -> tuple[int, int]:
 # =========================================================
 @router.get("", response_model=CarsListResponse)
 def list_cars(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
     limit: int = 20,
     offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     """
-    在庫一覧（テナント分離: store_id）。
-    pagination: limit/offset
+    在庫一覧取得（store完全分離）
+    並び順：
+      1. valuation_at DESC（最新査定）
+      2. updated_at DESC
+      3. created_at DESC
     """
-    limit, offset = _clamp_limit_offset(limit, offset)
 
-    try:
-        total_stmt = select(func.count()).select_from(Car).where(Car.store_id == current_user.store_id)
-        total = db.execute(total_stmt).scalar_one()
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
 
-        items_stmt = (
-            select(Car)
-            .where(Car.store_id == current_user.store_id)
-            # 最新査定の車を上に（valuation_at が無い/NULLでも落ちないように id で保険）
-            .order_by(desc(getattr(Car, "valuation_at", Car.id)), desc(Car.id))
-            .limit(limit)
-            .offset(offset)
+    # total count
+    total = db.execute(
+        select(func.count()).select_from(Car).where(
+            Car.store_id == current_user.store_id
         )
-        items = db.execute(items_stmt).scalars().all()
+    ).scalar_one()
 
-        return CarsListResponse(
-            items=items,
-            meta=PageMeta(limit=limit, offset=offset, total=total),
-        )
-    except Exception as e:
-        logger.exception("list_cars failed")
-        raise HTTPException(
-            status_code=500,
-            detail=f"list_cars failed: {type(e).__name__}: {str(e)}",
-        ) from None
+    # items fetch
+    items = db.execute(
+        select(Car).where(
+            Car.store_id == current_user.store_id
+        ).order_by(
+            desc(Car.valuation_at),
+            desc(Car.updated_at),
+            desc(Car.created_at),
+        ).limit(limit).offset(offset)
+    ).scalars().all()
 
+    return CarsListResponse(
+        items=items,
+        meta=PageMeta(
+            limit=limit,
+            offset=offset,
+            total=total,
+        ),
+    )
 
 # =========================================================
 # CRUD
