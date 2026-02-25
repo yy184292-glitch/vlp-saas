@@ -2,31 +2,32 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from typing import List
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import json
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.billing import BillingDocumentORM, BillingLineORM
 from app.schemas.billing import (
     BillingCreateIn,
+    BillingUpdateIn,
     BillingOut,
     BillingImportIn,
     BillingImportOut,
     BillingLineIn,
+    BillingLineOut,
 )
-
-from uuid import UUID
-
-from sqlalchemy import delete
-from app.schemas.billing import BillingUpdateIn, BillingLineOut
 
 router = APIRouter(tags=["billing"])
 
+
+# ============================================================
+# utils
+# ============================================================
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
@@ -48,40 +49,110 @@ def _to_out(doc: BillingDocumentORM) -> BillingOut:
     )
 
 
+# ============================================================
+# LIST
+# ============================================================
+
 @router.get("/billing", response_model=List[BillingOut])
 def list_billing(
     limit: int = 100,
     offset: int = 0,
+    status: str | None = None,
+    kind: str | None = None,
     db: Session = Depends(get_db),
 ) -> List[BillingOut]:
+
+    stmt = select(BillingDocumentORM)
+
+    if status:
+        stmt = stmt.where(BillingDocumentORM.status == status)
+
+    if kind:
+        stmt = stmt.where(BillingDocumentORM.kind == kind)
+
     stmt = (
-        select(BillingDocumentORM)
-        .order_by(BillingDocumentORM.created_at.desc())
+        stmt.order_by(BillingDocumentORM.created_at.desc())
         .limit(limit)
         .offset(offset)
     )
+
     rows = db.execute(stmt).scalars().all()
+
     return [_to_out(x) for x in rows]
 
+
+# ============================================================
+# GET
+# ============================================================
+
+@router.get("/billing/{billing_id}", response_model=BillingOut)
+def get_billing(
+    billing_id: UUID,
+    db: Session = Depends(get_db),
+) -> BillingOut:
+
+    stmt = select(BillingDocumentORM).where(
+        BillingDocumentORM.id == billing_id
+    )
+
+    doc = db.execute(stmt).scalar_one_or_none()
+
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    return _to_out(doc)
+
+
+# ============================================================
+# GET LINES
+# ============================================================
+
+@router.get(
+    "/billing/{billing_id}/lines",
+    response_model=List[BillingLineOut],
+)
+def list_billing_lines(
+    billing_id: UUID,
+    db: Session = Depends(get_db),
+) -> List[BillingLineOut]:
+
+    stmt = (
+        select(BillingLineORM)
+        .where(BillingLineORM.billing_id == billing_id)
+        .order_by(BillingLineORM.sort_order.asc())
+    )
+
+    return db.execute(stmt).scalars().all()
+
+
+# ============================================================
+# CREATE
+# ============================================================
 
 @router.post("/billing", response_model=BillingOut)
 def create_billing(
     body: BillingCreateIn,
     db: Session = Depends(get_db),
 ) -> BillingOut:
+
     now = _utcnow()
     billing_id = uuid4()
 
     subtotal = 0
+
     for ln in body.lines:
         qty = float(ln.qty or 0)
         unit_price = int(ln.unit_price or 0)
         subtotal += int(qty * unit_price)
 
     tax_total = 0
-    total = subtotal + tax_total
+    total = subtotal
 
-    # jsonb安全化（dict -> json）
+    issued_at = body.issued_at
+
+    if (body.status or "draft") == "issued" and issued_at is None:
+        issued_at = now
+
     meta_json = json.loads(json.dumps(body.meta or {}))
 
     doc = BillingDocumentORM(
@@ -93,33 +164,35 @@ def create_billing(
         subtotal=subtotal,
         tax_total=tax_total,
         total=total,
-        issued_at=now,  # NOT NULL対策
+        issued_at=issued_at,
         source_work_order_id=body.source_work_order_id,
         meta=meta_json,
         created_at=now,
         updated_at=now,
     )
+
     db.add(doc)
 
     for i, ln in enumerate(body.lines):
+
         qty = float(ln.qty or 0)
         unit_price = int(ln.unit_price or 0)
         cost_price = int(ln.cost_price or 0)
-        amount = int(qty * unit_price)
 
-        line = BillingLineORM(
-            id=uuid4(),
-            billing_id=billing_id,
-            name=ln.name,
-            qty=qty,
-            unit=ln.unit,
-            unit_price=unit_price,
-            cost_price=cost_price,
-            amount=amount,
-            sort_order=i,
-            created_at=now,
+        db.add(
+            BillingLineORM(
+                id=uuid4(),
+                billing_id=billing_id,
+                name=ln.name,
+                qty=qty,
+                unit=ln.unit,
+                unit_price=unit_price,
+                cost_price=cost_price,
+                amount=int(qty * unit_price),
+                sort_order=i,
+                created_at=now,
+            )
         )
-        db.add(line)
 
     db.commit()
     db.refresh(doc)
@@ -127,138 +200,9 @@ def create_billing(
     return _to_out(doc)
 
 
-@router.post("/billing/import", response_model=BillingImportOut)
-def import_billing(
-    body: BillingImportIn,
-    db: Session = Depends(get_db),
-) -> BillingImportOut:
-    """
-    localStorage の items 配列を受け取り、DBへ移行する。
-    成功したら inserted 件数を返す。
-    """
-    now = _utcnow()
-    inserted = 0
-
-    for it in body.items:
-        # lines を BillingLineIn に寄せる（unitPrice / unit_price 両対応）
-        lines_in: list[BillingLineIn] = []
-        for raw in (it.lines or []):
-            if not isinstance(raw, dict):
-                continue
-
-            name = str(raw.get("name") or "明細").strip()
-            if not name:
-                continue
-
-            try:
-                qty = float(raw.get("qty") or 0)
-            except Exception:
-                qty = 0.0
-
-            unit_price_raw = raw.get("unit_price")
-            if unit_price_raw is None:
-                unit_price_raw = raw.get("unitPrice")
-
-            try:
-                unit_price = int(unit_price_raw) if unit_price_raw is not None else 0
-            except Exception:
-                unit_price = 0
-
-            # unit は任意
-            unit = raw.get("unit")
-            unit_s = str(unit).strip() if unit is not None else None
-
-            lines_in.append(
-                BillingLineIn(
-                    name=name,
-                    qty=qty,
-                    unit=unit_s,
-                    unit_price=unit_price,
-                )
-            )
-
-        # subtotal 算出
-        subtotal = 0
-        for ln in lines_in:
-            subtotal += int(float(ln.qty or 0) * int(ln.unit_price or 0))
-
-        # meta（import印を付ける）
-        meta_json = json.loads(json.dumps({"_import": "localStorage"}))
-
-        billing_id = uuid4()
-
-        doc = BillingDocumentORM(
-            id=billing_id,
-            store_id=None,
-            kind=it.kind or "invoice",
-            status=it.status or "draft",
-            customer_name=it.customerName,
-            subtotal=subtotal,
-            tax_total=0,
-            total=subtotal,
-            issued_at=now,
-            source_work_order_id=None,
-            meta=meta_json,
-            created_at=now,
-            updated_at=now,
-        )
-        db.add(doc)
-
-        for i, ln in enumerate(lines_in):
-            qty = float(ln.qty or 0)
-            unit_price = int(ln.unit_price or 0)
-            amount = int(qty * unit_price)
-
-            db.add(
-                BillingLineORM(
-                    id=uuid4(),
-                    billing_id=billing_id,
-                    name=ln.name,
-                    qty=qty,
-                    unit=ln.unit,
-                    unit_price=unit_price,
-                    cost_price=int(getattr(ln, "cost_price", 0) or 0),
-                    amount=amount,
-                    sort_order=i,
-                    created_at=now,
-                )
-            )
-
-        inserted += 1
-
-    db.commit()
-    return BillingImportOut(inserted=inserted)
-
-
-@router.get("/billing/{billing_id}", response_model=BillingOut)
-def get_billing(
-    billing_id: str,
-    db: Session = Depends(get_db),
-) -> BillingOut:
-    stmt = select(BillingDocumentORM).where(BillingDocumentORM.id == billing_id)
-    doc = db.execute(stmt).scalar_one_or_none()
-
-    if not doc:
-        raise HTTPException(status_code=404, detail="Not found")
-
-    return _to_out(doc)
-
-
-@router.get("/billing/{billing_id}/lines", response_model=List[BillingLineOut])
-def list_billing_lines(
-    billing_id: str,
-    db: Session = Depends(get_db),
-) -> List[BillingLineOut]:
-
-    stmt = (
-        select(BillingLineORM)
-        .where(BillingLineORM.billing_id == billing_id)
-        .order_by(BillingLineORM.sort_order.asc())
-    )
-
-    rows = db.execute(stmt).scalars().all()
-
-    return rows
+# ============================================================
+# UPDATE
+# ============================================================
 
 @router.put("/billing/{billing_id}", response_model=BillingOut)
 def update_billing(
@@ -266,43 +210,46 @@ def update_billing(
     body: BillingUpdateIn,
     db: Session = Depends(get_db),
 ) -> BillingOut:
+
     now = _utcnow()
 
-    stmt = select(BillingDocumentORM).where(BillingDocumentORM.id == billing_id)
+    stmt = select(BillingDocumentORM).where(
+        BillingDocumentORM.id == billing_id
+    )
+
     doc = db.execute(stmt).scalar_one_or_none()
+
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
 
-    # ヘッダ更新（指定されたものだけ）
     if body.kind is not None:
         doc.kind = body.kind
+
     if body.status is not None:
         doc.status = body.status
-    if body.store_id is not None:
-        doc.store_id = body.store_id
+
     if body.customer_name is not None:
         doc.customer_name = body.customer_name
-    if body.source_work_order_id is not None:
-        doc.source_work_order_id = body.source_work_order_id
-    if body.issued_at is not None:
-        doc.issued_at = body.issued_at
 
     if body.meta is not None:
-        # jsonb安全化
         doc.meta = json.loads(json.dumps(body.meta))
 
-    # 明細を送ってきた場合のみ「全置換」
     if body.lines is not None:
-        # 既存 lines 全削除
-        db.execute(delete(BillingLineORM).where(BillingLineORM.billing_id == billing_id))
+
+        db.execute(
+            delete(BillingLineORM).where(
+                BillingLineORM.billing_id == billing_id
+            )
+        )
 
         subtotal = 0
+
         for i, ln in enumerate(body.lines):
+
             qty = float(ln.qty or 0)
             unit_price = int(ln.unit_price or 0)
-            cost_price = int(ln.cost_price or 0)
-            amount = int(qty * unit_price)
-            subtotal += amount
+
+            subtotal += int(qty * unit_price)
 
             db.add(
                 BillingLineORM(
@@ -312,8 +259,8 @@ def update_billing(
                     qty=qty,
                     unit=ln.unit,
                     unit_price=unit_price,
-                    cost_price=cost_price,
-                    amount=amount,
+                    cost_price=int(ln.cost_price or 0),
+                    amount=int(qty * unit_price),
                     sort_order=i,
                     created_at=now,
                 )
@@ -321,28 +268,91 @@ def update_billing(
 
         doc.subtotal = subtotal
         doc.tax_total = 0
-        doc.total = subtotal  # 税計算を入れるならここを差し替え
+        doc.total = subtotal
 
     doc.updated_at = now
 
     db.commit()
     db.refresh(doc)
+
     return _to_out(doc)
 
+
+# ============================================================
+# DELETE
+# ============================================================
 
 @router.delete("/billing/{billing_id}")
 def delete_billing(
     billing_id: UUID,
     db: Session = Depends(get_db),
-) -> dict:
-    stmt = select(BillingDocumentORM).where(BillingDocumentORM.id == billing_id)
+):
+
+    stmt = select(BillingDocumentORM).where(
+        BillingDocumentORM.id == billing_id
+    )
+
     doc = db.execute(stmt).scalar_one_or_none()
+
     if not doc:
         raise HTTPException(status_code=404, detail="Not found")
 
-    # 念のため lines を先に消す（DB制約が効かない環境でも安全）
-    db.execute(delete(BillingLineORM).where(BillingLineORM.billing_id == billing_id))
+    db.execute(
+        delete(BillingLineORM).where(
+            BillingLineORM.billing_id == billing_id
+        )
+    )
 
     db.delete(doc)
+
     db.commit()
-    return {"deleted": True, "id": str(billing_id)}
+
+    return {"deleted": True}
+
+
+# ============================================================
+# IMPORT
+# ============================================================
+
+@router.post("/billing/import", response_model=BillingImportOut)
+def import_billing(
+    body: BillingImportIn,
+    db: Session = Depends(get_db),
+) -> BillingImportOut:
+
+    now = _utcnow()
+    inserted = 0
+
+    for it in body.items:
+
+        billing_id = uuid4()
+
+        subtotal = 0
+
+        for ln in it.lines or []:
+            subtotal += int(
+                float(ln.get("qty", 0))
+                * int(ln.get("unit_price", 0))
+            )
+
+        doc = BillingDocumentORM(
+            id=billing_id,
+            kind=it.kind,
+            status=it.status,
+            customer_name=it.customerName,
+            subtotal=subtotal,
+            tax_total=0,
+            total=subtotal,
+            issued_at=now,
+            meta={"_import": "localStorage"},
+            created_at=now,
+            updated_at=now,
+        )
+
+        db.add(doc)
+
+        inserted += 1
+
+    db.commit()
+
+    return BillingImportOut(inserted=inserted)
