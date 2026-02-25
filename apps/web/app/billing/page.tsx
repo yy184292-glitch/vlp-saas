@@ -482,7 +482,7 @@ export default function BillingPage() {
       </div>
 
       <p style={{ marginTop: 16, color: "#666", fontSize: 12 }}>
-        ※この画面は localStorage 版MVPです（後でDB/APIへ差し替え）。:contentReference[oaicite:1]{index=1}
+        ※この画面は localStorage 版MVPです（後でDB/APIへ差し替え）。
       </p>
     </main>
   );
