@@ -67,7 +67,6 @@ class BillingOut(BaseModel):
     updated_at: datetime
 
 
-from typing import Any
 
 class BillingImportItemIn(BaseModel):
     id: str | None = None
