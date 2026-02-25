@@ -67,5 +67,18 @@ class BillingImportItemIn(BaseModel):
 class BillingImportIn(BaseModel):
     items: list[BillingImportItemIn] = Field(default_factory=list)
 
-class BillingImportOut(BaseModel):
-    inserted: int
+
+class BillingLineOut(BaseModel):
+    id: UUID
+    billing_id: UUID
+    name: str
+    qty: float
+    unit: Optional[str]
+    unit_price: int
+    cost_price: int
+    amount: int
+    sort_order: int
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
