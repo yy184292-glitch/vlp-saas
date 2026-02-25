@@ -1,25 +1,22 @@
 from __future__ import annotations
 
-import uuid
-from datetime import datetime, timezone
+from datetime import datetime
+from uuid import uuid4
 
-from sqlalchemy import Column, Integer, DateTime, ForeignKey, Float
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.sql import func
 
 from app.models.base import Base
 
 
 class CarValuation(Base):
-    """
-    査定履歴テーブル
-    cars は「最新状態」
-    car_valuations は「履歴」
-    """
-
     __tablename__ = "car_valuations"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid4,
+    )
 
     car_id = Column(
         UUID(as_uuid=True),
@@ -30,17 +27,23 @@ class CarValuation(Base):
 
     store_id = Column(
         UUID(as_uuid=True),
-        ForeignKey("stores.id"),
+        ForeignKey("stores.id", ondelete="CASCADE"),
         nullable=False,
         index=True,
     )
 
-    # 査定結果（スナップショット）
+    # 査定結果（保存）
     buy_price = Column(Integer, nullable=False)
     sell_price = Column(Integer, nullable=False)
     profit = Column(Integer, nullable=False)
     profit_rate = Column(Float, nullable=False)
 
+    # 市場価格レンジ（追加）
+    market_low = Column(Integer, nullable=True)
+    market_median = Column(Integer, nullable=True)
+    market_high = Column(Integer, nullable=True)
+
+    # 査定日時
     valuation_at = Column(
         DateTime(timezone=True),
         nullable=False,
@@ -49,6 +52,5 @@ class CarValuation(Base):
     created_at = Column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
-        server_default=func.now(),
+        default=datetime.utcnow,
     )
