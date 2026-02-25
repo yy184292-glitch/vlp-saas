@@ -575,3 +575,20 @@ def list_cars(
         items=items,
         meta=PageMeta(limit=limit, offset=offset, total=total),
     )
+
+
+@router.get("/{car_id}", response_model=CarRead)
+def get_car(
+    car_id: UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    car = db.get(Car, car_id)
+
+    if not car:
+        raise HTTPException(status_code=404, detail="Car not found")
+
+    if car.store_id != current_user.store_id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return car
