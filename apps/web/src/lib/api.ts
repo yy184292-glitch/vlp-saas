@@ -78,6 +78,45 @@ async function safeReadJson(res: Response): Promise<unknown> {
   }
 }
 
+function extractFastApiErrorMessage(detail: unknown): string | null {
+  // FastAPI典型:
+  // { detail: "message" }
+  // { detail: [{ loc, msg, type }, ...] }
+  // などをできるだけ人間向けにする
+  if (!detail) return null;
+
+  if (typeof detail === "string") return detail;
+
+  if (typeof detail === "object") {
+    const obj = detail as Record<string, unknown>;
+    const d = obj.detail;
+
+    if (typeof d === "string") return d;
+
+    // validation errors
+    if (Array.isArray(d)) {
+      const first = d[0] as any;
+      if (first && typeof first === "object" && typeof first.msg === "string") {
+        return first.msg;
+      }
+      // 最低限のフォールバック
+      try {
+        return JSON.stringify(d);
+      } catch {
+        return "Validation error";
+      }
+    }
+
+    // たまに { message: ... } や { error: ... } もある
+    for (const key of ["message", "error", "msg"]) {
+      const v = obj[key];
+      if (typeof v === "string" && v.trim()) return v;
+    }
+  }
+
+  return null;
+}
+
 type ApiFetchOptions = {
   method?: HttpMethod;
   headers?: Record<string, string>;
@@ -124,12 +163,11 @@ export async function apiFetch<T>(path: string, options: ApiFetchOptions = {}): 
 
   if (!res.ok) {
     const detail = await safeReadJson(res);
-    // 401でトークン不整合の場合はここで消すかは方針次第。事故減目的なら消してログイン誘導でもOK。
-    // if (res.status === 401) clearAccessToken();
+    const friendly = extractFastApiErrorMessage(detail);
     throw new ApiError({
       status: res.status,
       url,
-      message: `API request failed: ${res.status} ${res.statusText}`,
+      message: friendly ? friendly : `API request failed: ${res.status} ${res.statusText}`,
       detail,
     });
   }
@@ -356,28 +394,27 @@ export async function listCarValuations(
   return Array.isArray(data.items) ? data.items.map(normalizeValuation) : [];
 }
 
-
 // ============================
 // Valuation Calculate API
 // ============================
 
 export type ValuationCalculateRequest = {
-  make: string
-  model: string
-  grade: string
-  year: number
-  mileage: number
-}
+  make: string;
+  model: string;
+  grade: string;
+  year: number;
+  mileage: number;
+};
 
 export type ValuationCalculateResult = {
-  marketLow: number
-  marketMedian: number
-  marketHigh: number
-  buyCapPrice: number
-  recommendedPrice: number
-  expectedProfit: number
-  expectedProfitRate: number
-}
+  marketLow: number;
+  marketMedian: number;
+  marketHigh: number;
+  buyCapPrice: number;
+  recommendedPrice: number;
+  expectedProfit: number;
+  expectedProfitRate: number;
+};
 
 function normalizeCalculateResult(raw: any): ValuationCalculateResult {
   return {
@@ -388,16 +425,14 @@ function normalizeCalculateResult(raw: any): ValuationCalculateResult {
     recommendedPrice: Number(raw?.recommended_price ?? 0),
     expectedProfit: Number(raw?.expected_profit ?? 0),
     expectedProfitRate: Number(raw?.expected_profit_rate ?? 0),
-  }
+  };
 }
 
-export async function calculateValuation(
-  payload: ValuationCalculateRequest
-): Promise<ValuationCalculateResult> {
+export async function calculateValuation(payload: ValuationCalculateRequest): Promise<ValuationCalculateResult> {
   const res = await apiFetch<any>("/api/v1/valuation/calculate", {
     method: "POST",
-    auth: true, // ← これだけでBearer自動付与される
+    auth: true,
     body: payload,
-  })
-  return normalizeCalculateResult(res)
+  });
+  return normalizeCalculateResult(res);
 }
