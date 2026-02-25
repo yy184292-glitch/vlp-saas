@@ -1,44 +1,66 @@
 "use client";
 
 import Link from "next/link";
-import RequireAuth from "@/components/RequireAuth";
+import { useRouter } from "next/navigation";
+import { getAccessToken, clearAccessToken } from "@/lib/api";
+import { useEffect } from "react";
 
 const MENU = [
-  { title: "作業指示書", desc: "作業の作成・進捗管理", href: "/work-orders" },
-  { title: "車両関係", desc: "車両一覧・査定・履歴", href: "/cars" },
-  { title: "見積/請求書", desc: "見積作成・請求管理", href: "/billing" },
-  { title: "売上レポート", desc: "期間別・担当別の集計", href: "/reports" },
-  { title: "各種マスタ登録", desc: "店舗・顧客・商品など", href: "/masters" },
+  { title: "作業指示書", href: "/work-orders" },
+  { title: "車両一覧", href: "/cars" },
+  { title: "見積 / 請求書", href: "/billing" },
+  { title: "売上レポート", href: "/reports" },
+  { title: "各種マスタ登録", href: "/masters" },
 ];
 
 export default function DashboardPage() {
-  return (
-    <RequireAuth>
-      <div style={{ padding: 24 }}>
-        <h1 style={{ fontSize: 22, fontWeight: 800, marginBottom: 16 }}>メニュー</h1>
+  const router = useRouter();
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))", gap: 12 }}>
-          {MENU.map((m) => (
-            <Link
-              key={m.href}
-              href={m.href}
-              style={{
-                display: "block",
-                border: "1px solid #ddd",
-                borderRadius: 12,
-                padding: 16,
-                textDecoration: "none",
-                color: "inherit",
-                background: "#fff",
-              }}
-            >
-              <div style={{ fontWeight: 800, fontSize: 16 }}>{m.title}</div>
-              <div style={{ color: "#666", marginTop: 6, fontSize: 13 }}>{m.desc}</div>
-              <div style={{ marginTop: 10, color: "#666", fontSize: 12 }}>→ 開く</div>
-            </Link>
-          ))}
-        </div>
+  useEffect(() => {
+    if (!getAccessToken()) router.replace("/login");
+  }, [router]);
+
+  function logout() {
+    clearAccessToken();
+    router.replace("/login");
+  }
+
+  return (
+    <main style={{ padding: 24, maxWidth: 800, margin: "0 auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between" }}>
+        <h1 style={{ fontSize: 24, fontWeight: 800 }}>
+          VLP System Menu
+        </h1>
+
+        <button onClick={logout}>
+          Logout
+        </button>
       </div>
-    </RequireAuth>
+
+      <div
+        style={{
+          display: "grid",
+          gap: 12,
+          marginTop: 20,
+        }}
+      >
+        {MENU.map((m) => (
+          <Link
+            key={m.href}
+            href={m.href}
+            style={{
+              padding: 16,
+              border: "1px solid #ddd",
+              borderRadius: 12,
+              textDecoration: "none",
+              color: "inherit",
+              fontWeight: 600,
+            }}
+          >
+            {m.title}
+          </Link>
+        ))}
+      </div>
+    </main>
   );
 }
