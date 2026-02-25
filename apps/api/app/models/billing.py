@@ -49,6 +49,13 @@ class BillingDocumentORM(Base):
 
     updated_at = Column(DateTime(timezone=True), nullable=False)
 
+from sqlalchemy import Numeric
+
+doc_no = Column(String, nullable=True)
+
+tax_rate = Column(Numeric(5, 4), nullable=False, default=0.10)
+tax_mode = Column(String, nullable=False, default="exclusive")      # "exclusive" / "inclusive"
+tax_rounding = Column(String, nullable=False, default="floor")      # "floor" / "round" / "ceil"
 
 class BillingLineORM(Base):
 
