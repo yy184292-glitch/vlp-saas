@@ -96,9 +96,35 @@ function safeNumber(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
-function downloadUrl(url: string) {
-  // auth header付きDLが必要なら、fetch -> blob 方式に切り替える
-  window.open(url, "_blank", "noopener,noreferrer");
+async function downloadFile(path: string, filename: string) {
+  try {
+    const res = await fetch(`${getApiBaseOrThrow()}${path}`, {
+      headers: {
+        ...getAuthHeaders(),
+      },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => "");
+      throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    }
+
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    URL.revokeObjectURL(url);
+  } catch (e) {
+    alert(e instanceof Error ? e.message : "Download failed");
+  }
 }
 
 export default function BillingDetailPage() {
@@ -292,9 +318,22 @@ export default function BillingDetailPage() {
 
         <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
           <button onClick={() => router.push(`/billing/${doc.id}/print`)}>印刷用</button>
-          <button onClick={() => downloadUrl(pdfUrl)}>PDF</button>
-          <button onClick={() => downloadUrl(csvUrl)}>CSV</button>
+          <button
+            onClick={() =>
+              downloadFile(`/api/v1/billing/${doc.id}/export.pdf`, `billing_${doc.id}.pdf`)
+            }
+          >
+            PDF
+          </button>
 
+          <button
+            onClick={() =>
+              downloadFile(`/api/v1/billing/${doc.id}/export.csv`, `billing_${doc.id}.csv`)
+            }
+          >
+            CSV
+          </button>
+          
           <button onClick={issue} disabled={issuing || doc.status === "issued"}>
             {issuing ? "発行中..." : doc.status === "issued" ? "発行済" : "発行（issued）"}
           </button>
