@@ -36,8 +36,6 @@ type BillingCreateIn = {
   meta?: Record<string, unknown>;
 };
 
-const STORAGE_KEY = "vlp_billing_drafts_v1";
-
 const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
 
 function formatYen(n: number): string {
@@ -48,7 +46,23 @@ function formatYen(n: number): string {
   }).format(Number.isFinite(n) ? n : 0);
 }
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+function safeNumber(v: unknown, fallback = 0): number {
+  const n = typeof v === "number" ? v : Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function getApiBaseOrThrow(): string {
+  if (!API_BASE) {
+    // mis-config を早期に検知（SSR/CSR どちらでも原因が分かる）
+    throw new Error("NEXT_PUBLIC_API_BASE_URL が未設定です");
+  }
+  return API_BASE;
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = getApiBaseOrThrow();
+  const url = `${base}${path}`;
+
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -66,31 +80,11 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
-function safeNumber(v: unknown, fallback = 0): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function parseLocalDrafts(): any[] {
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 export default function BillingPage() {
   // DB list
   const [items, setItems] = useState<BillingDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
-
-  // import state
-  const [importing, setImporting] = useState(false);
-  const [importMsg, setImportMsg] = useState<string | null>(null);
 
   // create form
   const [customerName, setCustomerName] = useState("");
@@ -104,7 +98,8 @@ export default function BillingPage() {
   const previewTotal = useMemo(() => {
     return lines.reduce((sum, ln) => {
       const qty = safeNumber(ln.qty, 0);
-      const unit = ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
+      const unit =
+        ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
       return sum + Math.trunc(qty * unit);
     }, 0);
   }, [lines]);
@@ -113,7 +108,9 @@ export default function BillingPage() {
     setLoading(true);
     setErr(null);
     try {
-      const data = await fetchJson<BillingDoc[]>(`${API_BASE}/api/v1/billing?limit=100&offset=0`);
+      const data = await fetchJson<BillingDoc[]>(
+        `/api/v1/billing?limit=100&offset=0`
+      );
       setItems(data);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Failed to load");
@@ -152,14 +149,20 @@ export default function BillingPage() {
             name: (ln.name || "").trim(),
             qty: safeNumber(ln.qty, 0),
             unit: ln.unit,
-            unit_price: ln.unit_price == null ? undefined : Math.trunc(safeNumber(ln.unit_price, 0)),
-            cost_price: ln.cost_price == null ? undefined : Math.trunc(safeNumber(ln.cost_price, 0)),
+            unit_price:
+              ln.unit_price == null
+                ? undefined
+                : Math.trunc(safeNumber(ln.unit_price, 0)),
+            cost_price:
+              ln.cost_price == null
+                ? undefined
+                : Math.trunc(safeNumber(ln.cost_price, 0)),
           }))
           .filter((ln) => ln.name.length > 0),
         meta: { _ui: "billing-page" },
       };
 
-      await fetchJson(`${API_BASE}/api/v1/billing`, {
+      await fetchJson(`/api/v1/billing`, {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -175,43 +178,18 @@ export default function BillingPage() {
     }
   }
 
-  async function importLocalStorageAndClear() {
-    const ok = confirm("localStorage の下書きをDBへ移行し、移行後に localStorage を削除します。よろしいですか？");
-    if (!ok) return;
-
-    setImporting(true);
-    setImportMsg(null);
-
-    try {
-      const items = parseLocalDrafts();
-      if (items.length === 0) {
-        setImportMsg("localStorage に移行対象がありません");
-        return;
-      }
-
-      // API は { items: [...] } を受け取る
-      const res = await fetchJson<{ inserted: number }>(`${API_BASE}/api/v1/billing/import`, {
-        method: "POST",
-        body: JSON.stringify({ items }),
-      });
-
-      // 成功したら localStorage を消す（最優先要件）
-      localStorage.removeItem(STORAGE_KEY);
-
-      setImportMsg(`DBへ移行しました (${res.inserted}件) / localStorage を削除しました`);
-      await reload();
-    } catch (e) {
-      setImportMsg(e instanceof Error ? e.message : "Import failed");
-    } finally {
-      setImporting(false);
-    }
-  }
-
   return (
     <main style={{ padding: 24 }}>
       <h1 style={{ fontSize: 22, margin: 0 }}>見積・請求（DB）</h1>
 
-      <div style={{ marginTop: 14, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
+      <div
+        style={{
+          marginTop: 14,
+          padding: 12,
+          border: "1px solid #ddd",
+          borderRadius: 8,
+        }}
+      >
         <h2 style={{ fontSize: 16, margin: 0 }}>下書きを作成（DB）</h2>
 
         <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
@@ -227,7 +205,11 @@ export default function BillingPage() {
 
           <label>
             種別：
-            <select value={kind} onChange={(e) => setKind(e.target.value as BillingKind)} style={{ marginLeft: 8 }}>
+            <select
+              value={kind}
+              onChange={(e) => setKind(e.target.value as BillingKind)}
+              style={{ marginLeft: 8 }}
+            >
               <option value="invoice">invoice</option>
               <option value="estimate">estimate</option>
             </select>
@@ -256,7 +238,8 @@ export default function BillingPage() {
             <tbody>
               {lines.map((ln, idx) => {
                 const qty = safeNumber(ln.qty, 0);
-                const unit = ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
+                const unit =
+                  ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
                 const amount = Math.trunc(qty * unit);
 
                 return (
@@ -279,7 +262,9 @@ export default function BillingPage() {
                       <input
                         value={ln.unit_price ?? ""}
                         onChange={(e) =>
-                          updateLine(idx, { unit_price: e.target.value === "" ? undefined : safeNumber(e.target.value, 0) })
+                          updateLine(idx, {
+                            unit_price: e.target.value === "" ? undefined : safeNumber(e.target.value, 0),
+                          })
                         }
                         style={{ width: 120, textAlign: "right" }}
                       />
@@ -305,20 +290,6 @@ export default function BillingPage() {
         </div>
       </div>
 
-      <div style={{ marginTop: 14, padding: 12, border: "1px solid #ddd", borderRadius: 8 }}>
-        <h2 style={{ fontSize: 16, margin: 0 }}>localStorage → DB 移行</h2>
-
-        <p style={{ marginTop: 8, marginBottom: 8, color: "#555", fontSize: 13 }}>
-          ※「Import」を押すと localStorage の下書きをDBへ移行し、成功したら localStorage を削除します（運用前想定）。
-        </p>
-
-        <button onClick={importLocalStorageAndClear} disabled={importing}>
-          {importing ? "移行中..." : "Import（DBへ移行 → localStorage削除）"}
-        </button>
-
-        {importMsg && <p style={{ marginTop: 10 }}>{importMsg}</p>}
-      </div>
-
       <div style={{ marginTop: 20 }}>
         <h2 style={{ fontSize: 16 }}>最近の請求（DB）</h2>
 
@@ -341,7 +312,9 @@ export default function BillingPage() {
             <tbody>
               {items.map((d) => (
                 <tr key={d.id}>
-                  <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>{d.id}</td>
+                  <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
+                    {d.id}
+                  </td>
                   <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
                   <td>{d.customer_name ?? "-"}</td>
                   <td>{d.kind}</td>
@@ -353,8 +326,6 @@ export default function BillingPage() {
           </table>
         )}
       </div>
-
-      <p style={{ marginTop: 20, fontSize: 12, color: "#666" }}>localStorage → DB 移行対応済</p>
     </main>
   );
 }
