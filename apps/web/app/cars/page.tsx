@@ -32,7 +32,7 @@ export default function CarsPage() {
     (async () => {
       try {
         setLoading(true);
-        const items = await listCars();
+        const { items } = await listCars({ limit: 100, offset: 0 });
         setCars(items);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Failed to load cars");
