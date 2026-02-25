@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
-from app.deps import get_db
+from app.db.session import get_db
 from app.models.billing import BillingDocumentORM, BillingLineORM
 from app.schemas.billing import BillingCreateIn, BillingOut
 
