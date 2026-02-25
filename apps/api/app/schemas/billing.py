@@ -99,3 +99,10 @@ class BillingLineOut(BaseModel):
 class BillingImportOut(BaseModel):
     inserted: int = 0
 
+
+class BillingUpdateIn(BaseModel):
+    kind: Optional[BillingKind] = None
+    status: Optional[BillingStatus] = None
+    customer_name: Optional[str] = None
+    meta: Optional[dict[str, Any]] = None
+    lines: Optional[list[BillingLineIn]] = None
