@@ -14,7 +14,17 @@ type BillingDoc = {
 const API_BASE =
   (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
 
-async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
+function getApiBaseOrThrow(): string {
+  if (!API_BASE) {
+    throw new Error("NEXT_PUBLIC_API_BASE_URL が未設定です");
+  }
+  return API_BASE;
+}
+
+async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
+  const base = getApiBaseOrThrow();
+  const url = `${base}${path}`;
+
   const res = await fetch(url, {
     ...init,
     headers: {
@@ -28,6 +38,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => "");
     throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
   }
+
   return (await res.json()) as T;
 }
 
@@ -48,7 +59,6 @@ export default function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 簡易フィルタ（MVP）
   const [status, setStatus] = useState<"" | BillingDoc["status"]>("");
   const [kind, setKind] = useState<"" | BillingDoc["kind"]>("");
 
@@ -67,12 +77,17 @@ export default function ReportsPage() {
     (async () => {
       setLoading(true);
       setError(null);
+
       try {
-        const url = `${API_BASE}/api/v1/billing?${query}`;
-        const data = await fetchJson<BillingDoc[]>(url, { method: "GET" });
+        const data = await fetchJson<BillingDoc[]>(
+          `/api/v1/billing?${query}`,
+          { method: "GET" }
+        );
+
         if (!cancelled) setItems(data);
       } catch (e) {
-        if (!cancelled) setError(e instanceof Error ? e.message : "Failed to load");
+        if (!cancelled)
+          setError(e instanceof Error ? e.message : "Failed to load");
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -87,7 +102,7 @@ export default function ReportsPage() {
     <main style={{ padding: 24 }}>
       <h1>請求書（DB）</h1>
 
-      <div style={{ display: "flex", gap: 12, alignItems: "center", margin: "12px 0 18px" }}>
+      <div style={{ display: "flex", gap: 12, margin: "12px 0 18px" }}>
         <label>
           状態：
           <select
@@ -126,13 +141,7 @@ export default function ReportsPage() {
       </div>
 
       {loading && <p>Loading...</p>}
-      {error && (
-        <p style={{ color: "crimson" }}>
-          読み込みエラー: {error}
-          <br />
-          ※ API_BASE={API_BASE || "(same-origin)"} /api/v1/billing
-        </p>
-      )}
+      {error && <p style={{ color: "crimson" }}>読み込みエラー: {error}</p>}
 
       {!loading && !error && items.length === 0 && <p>データがありません</p>}
 
@@ -140,20 +149,18 @@ export default function ReportsPage() {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th align="left">ID</th>
-              <th align="left">作成日</th>
-              <th align="left">顧客</th>
-              <th align="left">種別</th>
-              <th align="left">状態</th>
+              <th>ID</th>
+              <th>作成日</th>
+              <th>顧客</th>
+              <th>種別</th>
+              <th>状態</th>
               <th align="right">合計</th>
             </tr>
           </thead>
           <tbody>
             {items.map((d) => (
               <tr key={d.id}>
-                <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                  {d.id}
-                </td>
+                <td>{d.id}</td>
                 <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
                 <td>{d.customer_name ?? "-"}</td>
                 <td>{d.kind}</td>
