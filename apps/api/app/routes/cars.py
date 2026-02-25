@@ -529,3 +529,42 @@ def list_car_valuations(
         items=items,
         meta=PageMeta(limit=limit, offset=offset, total=total),
     )
+
+
+from sqlalchemy import select, func, desc
+
+class CarsListResponse(BaseModel):
+    items: list[CarRead]
+    meta: PageMeta
+
+
+@router.get("", response_model=CarsListResponse)
+def list_cars(
+    limit: int = 20,
+    offset: int = 0,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    limit = max(1, min(limit, 200))
+    offset = max(0, offset)
+
+    total = db.execute(
+        select(func.count()).select_from(Car).where(
+            Car.store_id == current_user.store_id
+        )
+    ).scalar_one()
+
+    items = db.execute(
+        select(Car).where(
+            Car.store_id == current_user.store_id
+        ).order_by(
+            # valuation_at があるなら「最新査定順」
+            desc(Car.valuation_at),
+            desc(Car.id),
+        ).limit(limit).offset(offset)
+    ).scalars().all()
+
+    return CarsListResponse(
+        items=items,
+        meta=PageMeta(limit=limit, offset=offset, total=total),
+    )
