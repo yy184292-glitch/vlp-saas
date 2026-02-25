@@ -20,6 +20,11 @@ from app.schemas.billing import (
     BillingLineIn,
 )
 
+from uuid import UUID
+
+from sqlalchemy import delete
+from app.schemas.billing import BillingUpdateIn, BillingLineOut
+
 router = APIRouter(tags=["billing"])
 
 
@@ -254,3 +259,90 @@ def list_billing_lines(
     rows = db.execute(stmt).scalars().all()
 
     return rows
+
+@router.put("/billing/{billing_id}", response_model=BillingOut)
+def update_billing(
+    billing_id: UUID,
+    body: BillingUpdateIn,
+    db: Session = Depends(get_db),
+) -> BillingOut:
+    now = _utcnow()
+
+    stmt = select(BillingDocumentORM).where(BillingDocumentORM.id == billing_id)
+    doc = db.execute(stmt).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # ヘッダ更新（指定されたものだけ）
+    if body.kind is not None:
+        doc.kind = body.kind
+    if body.status is not None:
+        doc.status = body.status
+    if body.store_id is not None:
+        doc.store_id = body.store_id
+    if body.customer_name is not None:
+        doc.customer_name = body.customer_name
+    if body.source_work_order_id is not None:
+        doc.source_work_order_id = body.source_work_order_id
+    if body.issued_at is not None:
+        doc.issued_at = body.issued_at
+
+    if body.meta is not None:
+        # jsonb安全化
+        doc.meta = json.loads(json.dumps(body.meta))
+
+    # 明細を送ってきた場合のみ「全置換」
+    if body.lines is not None:
+        # 既存 lines 全削除
+        db.execute(delete(BillingLineORM).where(BillingLineORM.billing_id == billing_id))
+
+        subtotal = 0
+        for i, ln in enumerate(body.lines):
+            qty = float(ln.qty or 0)
+            unit_price = int(ln.unit_price or 0)
+            cost_price = int(ln.cost_price or 0)
+            amount = int(qty * unit_price)
+            subtotal += amount
+
+            db.add(
+                BillingLineORM(
+                    id=uuid4(),
+                    billing_id=billing_id,
+                    name=ln.name,
+                    qty=qty,
+                    unit=ln.unit,
+                    unit_price=unit_price,
+                    cost_price=cost_price,
+                    amount=amount,
+                    sort_order=i,
+                    created_at=now,
+                )
+            )
+
+        doc.subtotal = subtotal
+        doc.tax_total = 0
+        doc.total = subtotal  # 税計算を入れるならここを差し替え
+
+    doc.updated_at = now
+
+    db.commit()
+    db.refresh(doc)
+    return _to_out(doc)
+
+
+@router.delete("/billing/{billing_id}")
+def delete_billing(
+    billing_id: UUID,
+    db: Session = Depends(get_db),
+) -> dict:
+    stmt = select(BillingDocumentORM).where(BillingDocumentORM.id == billing_id)
+    doc = db.execute(stmt).scalar_one_or_none()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    # 念のため lines を先に消す（DB制約が効かない環境でも安全）
+    db.execute(delete(BillingLineORM).where(BillingLineORM.billing_id == billing_id))
+
+    db.delete(doc)
+    db.commit()
+    return {"deleted": True, "id": str(billing_id)}
