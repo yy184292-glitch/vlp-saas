@@ -392,12 +392,11 @@ function normalizeCalculateResult(raw: any): ValuationCalculateResult {
 }
 
 export async function calculateValuation(
-  token: string,
   payload: ValuationCalculateRequest
 ): Promise<ValuationCalculateResult> {
   const res = await apiFetch<any>("/api/v1/valuation/calculate", {
     method: "POST",
-    token,
+    auth: true, // ← これだけでBearer自動付与される
     body: payload,
   })
   return normalizeCalculateResult(res)
