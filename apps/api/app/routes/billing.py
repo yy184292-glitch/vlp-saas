@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.deps import get_db  # ← あなたの構成は deps に get_db がある
+from app.db.session import get_db
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
