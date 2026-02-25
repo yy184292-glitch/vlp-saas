@@ -12,7 +12,7 @@ from sqlalchemy import select
 
 from app.db.session import get_db
 from app.models.billing import BillingDocumentORM, BillingLineORM
-from app.schemas.billing import BillingCreateIn, BillingOut
+from app.schemas.billing import BillingImportIn, BillingImportOut, BillingLineIn
 
 
 router = APIRouter(tags=["billing"])
