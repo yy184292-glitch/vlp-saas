@@ -88,20 +88,43 @@ class BillingLineORM(Base):
         nullable=False,
     )
 
-    name = Column(String, nullable=False)
+    name = Column(
+        String,
+        nullable=False,
+    )
 
-    qty = Column(Float, nullable=False)
+    qty = Column(
+        Float,
+        nullable=False,
+    )
 
-    unit = Column(String, nullable=True)
+    unit = Column(
+        String,
+        nullable=True,
+    )
 
-    unit_price = Column(Integer, nullable=False)
+    unit_price = Column(
+        Integer,
+        nullable=False,
+    )
 
-    # convert で必ず使う
-    cost_price = Column(Integer, nullable=False, default=0)
+    cost_price = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
 
-    amount = Column(Integer, nullable=False, default=0)
+    amount = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
 
-    sort_order = Column(Integer, nullable=False, default=0)
+    sort_order = Column(
+        Integer,
+        nullable=False,
+        default=0,
+    )
 
     created_at = Column(
         DateTime(timezone=True),
