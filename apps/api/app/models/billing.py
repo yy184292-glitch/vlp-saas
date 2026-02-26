@@ -36,7 +36,6 @@ class BillingDocumentORM(Base):
 
     __tablename__ = "billing_documents"
 
-    # 主キー
     id = Column(
         UUID(as_uuid=True),
         primary_key=True,
@@ -44,32 +43,27 @@ class BillingDocumentORM(Base):
         nullable=False,
     )
 
-    # 店舗
     store_id = Column(
         UUID(as_uuid=True),
         nullable=True,
         index=True,
     )
 
-    # estimate / invoice
     kind = Column(
         String(32),
         nullable=False,
         index=True,
     )
 
-    # draft / issued / void
     status = Column(
         String(32),
         nullable=False,
         index=True,
     )
 
-    # 採番
     doc_no = Column(
         String(32),
         nullable=True,
-        unique=True,
         index=True,
     )
 
@@ -96,7 +90,6 @@ class BillingDocumentORM(Base):
         default=0,
     )
 
-    # 税設定
     tax_rate = Column(
         Numeric(5, 4),
         nullable=False,
@@ -135,7 +128,6 @@ class BillingDocumentORM(Base):
         DateTime(timezone=True),
         nullable=False,
         default=_utcnow,
-        index=True,
     )
 
     updated_at = Column(
@@ -145,27 +137,19 @@ class BillingDocumentORM(Base):
         onupdate=_utcnow,
     )
 
-    # ★ convert / issue / delete を安定させるための relation
-    lines = relationship(
-        "BillingLineORM",
-        back_populates="document",
-        cascade="all, delete-orphan",
-        passive_deletes=True,
+    __table_args__ = (
+        UniqueConstraint(
+            "store_id",
+            "doc_no",
+            name="uq_billing_documents_store_doc_no",
+        ),
+        Index(
+            "ix_billing_documents_store_kind_status",
+            "store_id",
+            "kind",
+            "status",
+        ),
     )
-
-   __table_args__ = (
-    UniqueConstraint(
-        "store_id",
-        "doc_no",
-        name="uq_billing_documents_store_doc_no",
-    ),
-    Index(
-        "ix_billing_documents_store_kind_status",
-        "store_id",
-        "kind",
-        "status",
-    ),
-)
 
 # ============================================================
 # billing_lines
