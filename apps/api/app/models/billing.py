@@ -75,7 +75,12 @@ class BillingLineORM(Base):
 
     __tablename__ = "billing_lines"
 
-    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    id = Column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+        nullable=False,
+    )
 
     billing_id = Column(
         UUID(as_uuid=True),
@@ -91,10 +96,15 @@ class BillingLineORM(Base):
 
     unit_price = Column(Integer, nullable=False)
 
-    cost_price = Column(Integer, nullable=False)
+    # convert で必ず使う
+    cost_price = Column(Integer, nullable=False, default=0)
 
-    amount = Column(Integer, nullable=False)
+    amount = Column(Integer, nullable=False, default=0)
 
-    sort_order = Column(Integer, nullable=False)
+    sort_order = Column(Integer, nullable=False, default=0)
 
-    created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=_utcnow,
+    )
