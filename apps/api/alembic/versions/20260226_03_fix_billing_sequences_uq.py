@@ -1,4 +1,4 @@
-"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
+﻿"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
 
 Revision ID: 20260226_03_seq_uq
 Revises: 20260226_01a
@@ -15,7 +15,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 重複解消（最大 next_no を残す）
     op.execute(
         """
         WITH ranked AS (
@@ -50,7 +49,6 @@ def upgrade() -> None:
         """
     )
 
-    # 重複行削除
     op.execute(
         """
         WITH ranked AS (
@@ -71,10 +69,9 @@ def upgrade() -> None:
         """
     )
 
-    # UNIQUE 制約追加（存在してたら無視）
     op.execute(
         """
-        DO $$
+        DO 20260226_03_fix_billing_sequences_uq.py
         BEGIN
             ALTER TABLE billing_sequences
             ADD CONSTRAINT uq_billing_sequences_store_year_kind
@@ -82,7 +79,7 @@ def upgrade() -> None:
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
-        END $$;
+        END 20260226_03_fix_billing_sequences_uq.py;
         """
     )
 
