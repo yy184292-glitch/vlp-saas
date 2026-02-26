@@ -1,3 +1,4 @@
+
 ﻿"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
 
 Revision ID: 20260226_03_seq_uq
