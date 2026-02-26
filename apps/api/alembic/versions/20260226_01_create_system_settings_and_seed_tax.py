@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from alembic import op
 
-revision = "20260226_01_create_system_settings_and_seed_tax"
+revision = "20260226_01a"
 down_revision = "9c1a0a2d0f11"
 branch_labels = None
 depends_on = None
