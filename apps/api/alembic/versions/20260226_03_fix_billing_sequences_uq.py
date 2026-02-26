@@ -1,5 +1,4 @@
-@'
-"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
+﻿"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
 
 Revision ID: 20260226_03_seq_uq
 Revises: 20260226_01a
@@ -16,9 +15,6 @@ depends_on = None
 
 
 def upgrade() -> None:
-    # 1) 既に重複している (store_id, year, kind) を解消
-    #    - 同一キーの複数行がある場合、next_no は最大値を残す
-    #    - 残す行は updated_at/created_at が新しいものを優先
     op.execute(
         """
         WITH ranked AS (
@@ -67,30 +63,25 @@ def upgrade() -> None:
         """
     )
 
-    # 2) UNIQUE 制約を追加（すでに存在する場合は無視）
-    #    Postgres は ADD CONSTRAINT IF NOT EXISTS が無い版もあるので DO ブロックで握りつぶす
     op.execute(
         """
-        DO $$
+        DO alembic/versions/20260226_03_fix_billing_sequences_uq.py
         BEGIN
             ALTER TABLE billing_sequences
             ADD CONSTRAINT uq_billing_sequences_store_year_kind
             UNIQUE (store_id, year, kind);
         EXCEPTION
             WHEN duplicate_object THEN
-                -- constraint already exists
                 NULL;
-        END $$;
+        END alembic/versions/20260226_03_fix_billing_sequences_uq.py;
         """
     )
 
 
 def downgrade() -> None:
-    # 制約が無い場合も落ちないように IF EXISTS
     op.execute(
         """
         ALTER TABLE billing_sequences
         DROP CONSTRAINT IF EXISTS uq_billing_sequences_store_year_kind;
         """
     )
-'@ | Set-Content -Encoding UTF8 -NoNewline alembic/versions/20260226_03_fix_billing_sequences_uq.py
