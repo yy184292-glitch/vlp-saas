@@ -12,3 +12,5 @@ passlib[bcrypt]>=1.7
 
 Pillow>=10.0
 python-multipart>=0.0.9
+
+alembic>=1.13
