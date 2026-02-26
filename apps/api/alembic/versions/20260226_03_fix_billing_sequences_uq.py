@@ -65,7 +65,7 @@ def upgrade() -> None:
 
     op.execute(
         """
-        DO alembic/versions/20260226_03_fix_billing_sequences_uq.py
+        DO main
         BEGIN
             ALTER TABLE billing_sequences
             ADD CONSTRAINT uq_billing_sequences_store_year_kind
@@ -73,7 +73,7 @@ def upgrade() -> None:
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
-        END alembic/versions/20260226_03_fix_billing_sequences_uq.py;
+        END main;
         """
     )
 
