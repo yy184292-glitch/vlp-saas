@@ -1,56 +1,80 @@
-"""create system_settings and seed tax
+"""ensure system_settings schema and seed tax
 
-Revision ID: 20260226_01
-Revises: 7f3c2a1b9d10
+Revision ID: 20260226_01_create_system_settings_and_seed_tax
+Revises: 9c1a0a2d0f11
 Create Date: 2026-02-26
 """
+from __future__ import annotations
+
 from alembic import op
-import sqlalchemy as sa
 
-try:
-    from sqlalchemy.dialects import postgresql
-except Exception:
-    postgresql = None  # type: ignore
-
-revision = "20260226_01"
-down_revision = "7f3c2a1b9d10"
+# Revision identifiers, used by Alembic.
+revision = "20260226_01_create_system_settings_and_seed_tax"
+down_revision = "9c1a0a2d0f11"
 branch_labels = None
 depends_on = None
 
 
 def upgrade() -> None:
-    if postgresql is None:
-        # Postgres 前提の jsonb なので、非Postgresは json に落とす
-        value_type = sa.JSON()
-    else:
-        value_type = postgresql.JSONB(astext_type=sa.Text())
+    """
+    Production-safe:
+    - Create system_settings if missing
+    - Add missing columns if table exists with older schema
+    - Seed tax settings (upsert)
+    """
+    op.execute(
+        """
+        DO $$
+        BEGIN
+          -- Create table if missing
+          IF to_regclass('public.system_settings') IS NULL THEN
+            CREATE TABLE system_settings (
+              key text PRIMARY KEY,
+              value jsonb NOT NULL DEFAULT '{}'::jsonb,
+              created_at timestamptz NOT NULL DEFAULT now(),
+              updated_at timestamptz NOT NULL DEFAULT now()
+            );
+          END IF;
 
-    op.create_table(
-        "system_settings",
-        sa.Column("key", sa.String(64), primary_key=True, nullable=False),
-        sa.Column("value", value_type, nullable=False, server_default=sa.text("'{}'")),
-        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
-        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
+          -- Add missing columns safely (supports older tables)
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='system_settings' AND column_name='value'
+          ) THEN
+            ALTER TABLE system_settings
+              ADD COLUMN value jsonb NOT NULL DEFAULT '{}'::jsonb;
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='system_settings' AND column_name='created_at'
+          ) THEN
+            ALTER TABLE system_settings
+              ADD COLUMN created_at timestamptz NOT NULL DEFAULT now();
+          END IF;
+
+          IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns
+            WHERE table_schema='public' AND table_name='system_settings' AND column_name='updated_at'
+          ) THEN
+            ALTER TABLE system_settings
+              ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
+          END IF;
+
+          -- Seed / upsert tax setting
+          INSERT INTO system_settings(key, value)
+          VALUES ('tax', '{"rate": 0.10, "mode": "exclusive", "rounding": "floor"}'::jsonb)
+          ON CONFLICT (key)
+          DO UPDATE SET value = EXCLUDED.value, updated_at = now();
+        END
+        $$;
+        """
     )
-
-    # seed tax
-    if postgresql is not None:
-        op.execute(
-            """
-            INSERT INTO system_settings(key, value)
-            VALUES ('tax', '{"rate": 0.10, "mode": "exclusive", "rounding": "floor"}'::jsonb)
-            ON CONFLICT (key)
-            DO UPDATE SET value = EXCLUDED.value, updated_at = now();
-            """
-        )
-    else:
-        op.execute(
-            """
-            INSERT INTO system_settings(key, value)
-            VALUES ('tax', '{"rate": 0.10, "mode": "exclusive", "rounding": "floor"}')
-            """
-        )
 
 
 def downgrade() -> None:
-    op.drop_table("system_settings")
+    """
+    Do not drop the table in production downgrade automatically.
+    Keeping downgrade as no-op avoids accidental data loss.
+    """
+    pass
