@@ -153,19 +153,19 @@ class BillingDocumentORM(Base):
         passive_deletes=True,
     )
 
-    __table_args__ = (
-        UniqueConstraint(
-            "doc_no",
-            name="uq_billing_documents_doc_no",
-        ),
-        Index(
-            "ix_billing_documents_store_kind_status",
-            "store_id",
-            "kind",
-            "status",
-        ),
-    )
-
+   __table_args__ = (
+    UniqueConstraint(
+        "store_id",
+        "doc_no",
+        name="uq_billing_documents_store_doc_no",
+    ),
+    Index(
+        "ix_billing_documents_store_kind_status",
+        "store_id",
+        "kind",
+        "status",
+    ),
+)
 
 # ============================================================
 # billing_lines
