@@ -1,4 +1,4 @@
-﻿"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
+"""Fix billing_sequences duplicates then add UNIQUE(store_id, year, kind)
 
 Revision ID: 20260226_03_seq_uq
 Revises: 20260226_01a
@@ -15,6 +15,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    # 重複解消（最大 next_no を残す）
     op.execute(
         """
         WITH ranked AS (
@@ -28,9 +29,13 @@ def upgrade() -> None:
                 updated_at,
                 ROW_NUMBER() OVER (
                     PARTITION BY store_id, year, kind
-                    ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+                    ORDER BY updated_at DESC NULLS LAST,
+                             created_at DESC NULLS LAST,
+                             id DESC
                 ) AS rn,
-                MAX(next_no) OVER (PARTITION BY store_id, year, kind) AS max_no
+                MAX(next_no) OVER (
+                    PARTITION BY store_id, year, kind
+                ) AS max_no
             FROM billing_sequences
         ),
         keepers AS (
@@ -45,6 +50,7 @@ def upgrade() -> None:
         """
     )
 
+    # 重複行削除
     op.execute(
         """
         WITH ranked AS (
@@ -52,7 +58,9 @@ def upgrade() -> None:
                 id,
                 ROW_NUMBER() OVER (
                     PARTITION BY store_id, year, kind
-                    ORDER BY updated_at DESC NULLS LAST, created_at DESC NULLS LAST, id DESC
+                    ORDER BY updated_at DESC NULLS LAST,
+                             created_at DESC NULLS LAST,
+                             id DESC
                 ) AS rn
             FROM billing_sequences
         )
@@ -63,9 +71,10 @@ def upgrade() -> None:
         """
     )
 
+    # UNIQUE 制約追加（存在してたら無視）
     op.execute(
         """
-        DO main
+        DO $$
         BEGIN
             ALTER TABLE billing_sequences
             ADD CONSTRAINT uq_billing_sequences_store_year_kind
@@ -73,7 +82,7 @@ def upgrade() -> None:
         EXCEPTION
             WHEN duplicate_object THEN
                 NULL;
-        END main;
+        END $$;
         """
     )
 
