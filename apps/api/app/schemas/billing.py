@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal, Optional
 from uuid import UUID
 
@@ -31,19 +32,23 @@ class BillingCreateIn(BaseModel):
     lines: list[BillingLineIn] = Field(default_factory=list)
     meta: Optional[dict[str, Any]] = None
 
+
 class BillingUpdateIn(BaseModel):
+    # 変更したいフィールドだけ送る
     kind: Optional[BillingKind] = None
     status: Optional[BillingStatus] = None
 
+    # store_id は本番だと認証から決めるので、更新では基本触らない想定
     store_id: Optional[UUID] = None
+
     customer_name: Optional[str] = None
     source_work_order_id: Optional[UUID] = None
     issued_at: Optional[datetime] = None
 
     # 送られてきた場合のみ「明細を全置換」する
     lines: Optional[list[BillingLineIn]] = None
-    meta: Optional[dict[str, Any]] = None
 
+    meta: Optional[dict[str, Any]] = None
 
 
 class BillingOut(BaseModel):
@@ -52,8 +57,11 @@ class BillingOut(BaseModel):
     id: UUID
     store_id: Optional[UUID] = None
 
-    kind: str
-    status: str
+    kind: BillingKind
+    status: BillingStatus
+
+    # 採番
+    doc_no: Optional[str] = None
 
     customer_name: Optional[str] = None
 
@@ -61,27 +69,20 @@ class BillingOut(BaseModel):
     tax_total: int
     total: int
 
+    # 税設定（作成時に固定保存）
+    tax_rate: Optional[Decimal] = None
+    tax_mode: Optional[str] = None
+    tax_rounding: Optional[str] = None
+
     issued_at: Optional[datetime] = None
 
     created_at: datetime
     updated_at: datetime
 
 
-
-class BillingImportItemIn(BaseModel):
-    id: str | None = None
-    createdAt: str | None = None
-    customerName: str | None = None
-    total: int | None = None
-    status: BillingStatus = "draft"
-    kind: BillingKind = "invoice"
-    lines: list[dict[str, Any]] = Field(default_factory=list)
-
-class BillingImportIn(BaseModel):
-    items: list[BillingImportItemIn] = Field(default_factory=list)
-
-
 class BillingLineOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: UUID
     billing_id: UUID
     name: str
@@ -93,16 +94,20 @@ class BillingLineOut(BaseModel):
     sort_order: int
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+
+class BillingImportItemIn(BaseModel):
+    id: str | None = None
+    createdAt: str | None = None
+    customerName: str | None = None
+    total: int | None = None
+    status: BillingStatus = "draft"
+    kind: BillingKind = "invoice"
+    lines: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class BillingImportIn(BaseModel):
+    items: list[BillingImportItemIn] = Field(default_factory=list)
+
 
 class BillingImportOut(BaseModel):
     inserted: int = 0
-
-
-class BillingUpdateIn(BaseModel):
-    kind: Optional[BillingKind] = None
-    status: Optional[BillingStatus] = None
-    customer_name: Optional[str] = None
-    meta: Optional[dict[str, Any]] = None
-    lines: Optional[list[BillingLineIn]] = None
