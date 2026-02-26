@@ -9,6 +9,10 @@ from pathlib import Path
 from typing import Any, List, Optional
 from uuid import UUID, uuid4
 
+
+from sqlalchemy import text
+from sqlalchemy.exc import IntegrityError
+
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, delete, select
@@ -103,6 +107,48 @@ def _get_tax_defaults(db: Session) -> tuple[Decimal, str, str]:
     rounding = str(row.value.get("rounding", "floor"))
     return rate, mode, rounding
 
+
+def _utcnow() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _alloc_doc_no(db, store_id, kind: str, now: datetime) -> str:
+    """
+    採番をDB側で原子的に進めて doc_no を返す。
+    billing_sequences.next_no を「最後に発行した番号」として扱う（1,2,3...）。
+
+    - INSERT (初回): next_no=1 を作って 1 を返す
+    - CONFLICT (2回目以降): next_no=next_no+1 して更新後の値を返す
+
+    これで並列でも重複しない。
+    """
+    year = now.year
+    prefix = "EST" if kind == "estimate" else "INV"
+
+    stmt = text(
+        """
+        INSERT INTO billing_sequences (id, store_id, year, kind, next_no, created_at, updated_at)
+        VALUES (:id, :store_id, :year, :kind, 1, :now, :now)
+        ON CONFLICT (store_id, year, kind)
+        DO UPDATE
+          SET next_no = billing_sequences.next_no + 1,
+              updated_at = EXCLUDED.updated_at
+        RETURNING next_no
+        """
+    )
+
+    n = db.execute(
+        stmt,
+        {
+            "id": uuid4(),
+            "store_id": store_id,
+            "year": year,
+            "kind": kind,
+            "now": now,
+        },
+    ).scalar_one()
+
+    return f"{prefix}-{year}-{int(n):05d}"
 
 def _round_tax(value: Decimal, rounding: str) -> int:
     if rounding == "floor":
