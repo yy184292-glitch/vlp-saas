@@ -30,6 +30,7 @@ from app.schemas.billing import (
     BillingLineOut,
     BillingOut,
     BillingUpdateIn,
+    BillingVoidIn,
 )
 
 router = APIRouter(tags=["billing"])
@@ -447,6 +448,53 @@ def issue_billing(
     if doc.issued_at is None:
         doc.issued_at = now
     doc.updated_at = now
+
+    db.commit()
+    db.refresh(doc)
+    return _to_out(doc)
+
+@router.post("/billing/{billing_id}/void", response_model=BillingOut)
+def void_billing(
+    request: Request,
+    billing_id: UUID,
+    body: BillingVoidIn | None = None,
+    db: Session = Depends(get_db),
+) -> BillingOut:
+    """
+    発行済み請求書を取消(VOID)する。
+    - issued の invoice のみ許可
+    - 既に void の場合は冪等に成功
+    - 取消理由は doc.meta に保持（DB変更不要）
+    """
+    now = _utcnow()
+
+    doc = db.get(BillingDocumentORM, billing_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    _assert_scope(doc, _get_actor_store_id(request))
+
+    # 既に void なら冪等に返す
+    if doc.status == "void":
+        return _to_out(doc)
+
+    # 「発行後取消」なので issued のみ許可（draft はまず削除 or update）
+    if doc.status != "issued":
+        raise HTTPException(status_code=400, detail="Only issued document can be voided")
+
+    # 通常は invoice のみ取消対象にする（見積は取消というより編集/削除）
+    if doc.kind != "invoice":
+        raise HTTPException(status_code=400, detail="Only invoice can be voided")
+
+    # 状態更新
+    doc.status = "void"
+    doc.updated_at = now
+
+    # 理由は meta に保存（既存 meta を壊さない）
+    if body and body.reason:
+        meta = doc.meta if isinstance(doc.meta, dict) else {}
+        meta["_void"] = {"reason": body.reason, "at": now.isoformat()}
+        doc.meta = _jsonb_safe(meta)
 
     db.commit()
     db.refresh(doc)
