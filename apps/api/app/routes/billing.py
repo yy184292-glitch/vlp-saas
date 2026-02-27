@@ -579,6 +579,7 @@ def convert_to_invoice(
     return _to_out(invoice)
 
 
+
 # ============================================================
 # delete
 # ============================================================
@@ -594,10 +595,64 @@ def delete_billing(
         raise HTTPException(status_code=404, detail="Not found")
     _assert_scope(doc, _get_actor_store_id(request))
 
+    # issued は物理削除禁止（取消は void を使う）
+    if doc.status == "issued":
+        raise HTTPException(
+            status_code=400,
+            detail="Issued document cannot be deleted. Use /void.",
+        )
+
+    # void は運用次第：消して良いならOK / 監査目的なら禁止でもOK
+    # if doc.status == "void":
+    #     raise HTTPException(status_code=400, detail="Voided document cannot be deleted.")
+
     db.execute(delete(BillingLineORM).where(BillingLineORM.billing_id == billing_id))
     db.delete(doc)
     db.commit()
     return {"deleted": True}
+
+class BillingVoidIn(BaseModel):
+    reason: str | None = Field(default=None, max_length=200)
+
+
+@router.post("/billing/{billing_id}/void", response_model=BillingOut)
+def void_billing(
+    request: Request,
+    billing_id: UUID,
+    body: BillingVoidIn | None = None,
+    db: Session = Depends(get_db),
+) -> BillingOut:
+    now = _utcnow()
+
+    doc = db.get(BillingDocumentORM, billing_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    _assert_scope(doc, _get_actor_store_id(request))
+
+    # 冪等
+    if doc.status == "void":
+        return _to_out(doc)
+
+    # 「発行後取消」なので issued のみ
+    if doc.status != "issued":
+        raise HTTPException(status_code=400, detail="Only issued document can be voided")
+
+    # 通常は invoice のみ（見積は取消より編集/削除）
+    if doc.kind != "invoice":
+        raise HTTPException(status_code=400, detail="Only invoice can be voided")
+
+    doc.status = "void"
+    doc.updated_at = now
+
+    # 理由は meta に保存（DB変更不要）
+    if body and body.reason:
+        meta = doc.meta if isinstance(doc.meta, dict) else {}
+        meta["_void"] = {"reason": body.reason, "at": now.isoformat()}
+        doc.meta = _jsonb_safe(meta)
+
+    db.commit()
+    db.refresh(doc)
+    return _to_out(doc)
 
 
 # ============================================================
