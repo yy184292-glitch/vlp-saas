@@ -111,3 +111,6 @@ class BillingImportIn(BaseModel):
 
 class BillingImportOut(BaseModel):
     inserted: int = 0
+
+class BillingVoidIn(BaseModel):
+    reason: Optional[str] = Field(default=None, max_length=200)
