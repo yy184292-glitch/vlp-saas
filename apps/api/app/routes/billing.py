@@ -17,6 +17,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy import and_, delete, select
 from sqlalchemy.orm import Session
+from pydantic import BaseModel, Field
+
 
 from app.db.session import get_db
 from app.models.billing import BillingDocumentORM, BillingLineORM
