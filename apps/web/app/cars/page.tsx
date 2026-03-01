@@ -121,6 +121,8 @@ export default function CarsListPage() {
         </div>
 
         <div className="flex gap-2">
+          <Button onClick={() => router.push("/cars/new")}>新規登録</Button>
+
           <Button variant="outline" onClick={loadAllCars} disabled={loading}>
             {loading ? "更新中…" : "更新"}
           </Button>
@@ -160,11 +162,7 @@ export default function CarsListPage() {
       {/* Grid: 2列/3列 */}
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
         {vms.map((vm) => (
-          <CarCard
-            key={vm.id}
-            vm={vm}
-            onClick={() => router.push(vm.href)}
-          />
+          <CarCard key={vm.id} vm={vm} onClick={() => router.push(vm.href)} />
         ))}
 
         {!loading && vms.length === 0 ? (
@@ -218,13 +216,7 @@ function CarCard(props: { vm: CarCardVM; onClick: () => void }) {
           <div className="shrink-0">
             <div className="relative h-[72px] w-[96px] overflow-hidden rounded-md border bg-muted">
               {vm.thumbUrl ? (
-                <Image
-                  src={vm.thumbUrl}
-                  alt={vm.title}
-                  fill
-                  sizes="96px"
-                  className="object-cover"
-                />
+                <Image src={vm.thumbUrl} alt={vm.title} fill sizes="96px" className="object-cover" />
               ) : (
                 <div className="h-full w-full grid place-items-center text-[10px] text-muted-foreground">
                   NO IMAGE

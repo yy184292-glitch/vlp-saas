@@ -627,3 +627,302 @@ export async function getCostByItem(args: {
     auth: true,
   });
 }
+
+
+// ============================================================
+// Domain: Inventory
+// ============================================================
+
+export type InventoryItem = {
+  id: string;
+  store_id: string | null;
+
+  sku: string | null;
+  name: string | null;
+  unit: string | null;
+
+  // FastAPI Decimal が string になる想定
+  cost_price: string | null;
+  sale_price: string | null;
+  qty_on_hand: string | null;
+
+  note: string | null;
+
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type InventoryItemInput = {
+  store_id: string;
+  sku?: string | null;
+  name: string;
+  unit?: string | null;
+  cost_price?: number | null;
+  sale_price?: number | null;
+  qty_on_hand?: number | null;
+  note?: string | null;
+};
+
+export type StockMove = {
+  id: string;
+  store_id: string | null;
+
+  item_id: string | null;
+  qty_delta: string | null; // Decimal/数値が文字列の可能性
+  reason: string | null;
+  ref_type: string | null;
+  ref_id: string | null;
+  note: string | null;
+
+  created_at: string | null;
+  updated_at: string | null;
+};
+
+export type CreateStockMoveInput = {
+  store_id: string;
+  item_id: string;
+  qty_delta: number; // +入庫 / -出庫
+  reason?: string | null;
+  ref_type?: string | null; // "billing" / "work" など
+  ref_id?: string | null;
+  note?: string | null;
+};
+
+type ListWithMeta<T> = {
+  items: T[];
+  meta?: { limit?: number; offset?: number; total?: number };
+};
+
+function normalizeInventoryItem(raw: unknown): InventoryItem {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: toNullableString(r.id) ?? "",
+    store_id: toNullableString(r.store_id),
+
+    sku: toNullableString(r.sku),
+    name: toNullableString(r.name),
+    unit: toNullableString(r.unit),
+
+    cost_price: toNullableString(r.cost_price),
+    sale_price: toNullableString(r.sale_price),
+    qty_on_hand: toNullableString(r.qty_on_hand),
+
+    note: toNullableString(r.note),
+
+    created_at: toNullableString(r.created_at),
+    updated_at: toNullableString(r.updated_at),
+  };
+}
+
+function normalizeStockMove(raw: unknown): StockMove {
+  const r = (raw ?? {}) as Record<string, unknown>;
+  return {
+    id: toNullableString(r.id) ?? "",
+    store_id: toNullableString(r.store_id),
+
+    item_id: toNullableString(r.item_id),
+    qty_delta: toNullableString(r.qty_delta),
+
+    reason: toNullableString(r.reason),
+    ref_type: toNullableString(r.ref_type),
+    ref_id: toNullableString(r.ref_id),
+    note: toNullableString(r.note),
+
+    created_at: toNullableString(r.created_at),
+    updated_at: toNullableString(r.updated_at),
+  };
+}
+
+function coerceItemsArray<T>(data: unknown, normalize: (x: unknown) => T): T[] {
+  // 1) { items: [...] } 形式
+  if (data && typeof data === "object" && Array.isArray((data as any).items)) {
+    return (data as any).items.map(normalize);
+  }
+  // 2) [...] 直返し
+  if (Array.isArray(data)) {
+    return data.map(normalize);
+  }
+  return [];
+}
+
+/**
+ * store_id をフロント側で使い回したい場合の暫定ヘルパ。
+ * - まずは localStorage から取る（あなたの今の運用に合わせる）
+ * - 後で users/me から取る方式に差し替えてもOK
+ */
+export function getCurrentStoreId(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const v = window.localStorage.getItem("store_id");
+    return v && v.trim() ? v.trim() : null;
+  } catch {
+    return null;
+  }
+}
+
+// ===== Inventory Items =====
+
+export async function listInventoryItems(args?: {
+  limit?: number;
+  offset?: number;
+  store_id?: string;
+}): Promise<{ items: InventoryItem[]; meta?: ListWithMeta<unknown>["meta"] }> {
+  const p = new URLSearchParams();
+  if (args?.limit != null) p.set("limit", String(args.limit));
+  if (args?.offset != null) p.set("offset", String(args.offset));
+  if (args?.store_id) p.set("store_id", args.store_id);
+
+  const qs = p.toString();
+  const data = await apiFetch<unknown>(`/api/v1/inventory/items${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+    auth: true,
+  });
+
+  const items = coerceItemsArray(data, normalizeInventoryItem).filter((x) => x.id);
+  const meta =
+    data && typeof data === "object" && (data as any).meta && typeof (data as any).meta === "object"
+      ? ((data as any).meta as any)
+      : undefined;
+
+  return { items, meta };
+}
+
+export async function getInventoryItem(itemId: string): Promise<InventoryItem> {
+  const data = await apiFetch<unknown>(`/api/v1/inventory/items/${encodeURIComponent(itemId)}`, {
+    method: "GET",
+    auth: true,
+  });
+  return normalizeInventoryItem(data);
+}
+
+export async function createInventoryItem(input: InventoryItemInput): Promise<InventoryItem> {
+  const data = await apiFetch<unknown>("/api/v1/inventory/items", {
+    method: "POST",
+    auth: true,
+    body: input,
+  });
+  return normalizeInventoryItem(data);
+}
+
+export async function updateInventoryItem(
+  itemId: string,
+  input: Partial<InventoryItemInput>
+): Promise<InventoryItem> {
+  const data = await apiFetch<unknown>(`/api/v1/inventory/items/${encodeURIComponent(itemId)}`, {
+    method: "PUT",
+    auth: true,
+    body: input,
+  });
+  return normalizeInventoryItem(data);
+}
+
+export async function deleteInventoryItem(itemId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/inventory/items/${encodeURIComponent(itemId)}`, {
+    method: "DELETE",
+    auth: true,
+  });
+}
+
+// ===== Stock Moves =====
+
+export async function listStockMoves(args?: {
+  limit?: number;
+  offset?: number;
+  store_id?: string;
+  item_id?: string;
+  ref_id?: string;
+}): Promise<{ items: StockMove[]; meta?: ListWithMeta<unknown>["meta"] }> {
+  const p = new URLSearchParams();
+  if (args?.limit != null) p.set("limit", String(args.limit));
+  if (args?.offset != null) p.set("offset", String(args.offset));
+  if (args?.store_id) p.set("store_id", args.store_id);
+  if (args?.item_id) p.set("item_id", args.item_id);
+  if (args?.ref_id) p.set("ref_id", args.ref_id);
+
+  const qs = p.toString();
+  const data = await apiFetch<unknown>(`/api/v1/inventory/moves${qs ? `?${qs}` : ""}`, {
+    method: "GET",
+    auth: true,
+  });
+
+  const items = coerceItemsArray(data, normalizeStockMove).filter((x) => x.id);
+  const meta =
+    data && typeof data === "object" && (data as any).meta && typeof (data as any).meta === "object"
+      ? ((data as any).meta as any)
+      : undefined;
+
+  return { items, meta };
+}
+
+export async function createStockMove(input: CreateStockMoveInput): Promise<StockMove> {
+  const data = await apiFetch<unknown>("/api/v1/inventory/moves", {
+    method: "POST",
+    auth: true,
+    body: input,
+  });
+  return normalizeStockMove(data);
+}
+
+// =====================
+// Me / Roles
+// =====================
+export type Me = {
+  id: string;
+  email: string;
+  store_id: string;
+  role: "admin" | "manager" | "staff" | string;
+};
+
+export async function getMe(): Promise<Me> {
+  return await apiFetch<Me>("/api/v1/users/me", { method: "GET", auth: true, cache: "no-store" });
+}
+
+// =====================
+// Invites / Seats (Store)
+// =====================
+export type Seats = {
+  store_id: string;
+  plan_code: string;
+  seat_limit: number;
+  active_users: number;
+};
+
+export type Invite = {
+  id: string;
+  store_id: string;
+  code: string;
+  role: string;
+  max_uses: number;
+  used_count: number;
+  expires_at?: string | null;
+  created_at: string;
+};
+
+export async function getSeats(): Promise<Seats> {
+  return await apiFetch<Seats>("/api/v1/invites/seats", { method: "GET", auth: true, cache: "no-store" });
+}
+
+export async function listInvites(): Promise<Invite[]> {
+  return await apiFetch<Invite[]>("/api/v1/invites", { method: "GET", auth: true, cache: "no-store" });
+}
+
+export async function createInvite(input?: { role?: string; max_uses?: number; code_length?: number; expires_at?: string | null }): Promise<Invite> {
+  return await apiFetch<Invite>("/api/v1/invites", {
+    method: "POST",
+    auth: true,
+    body: {
+      role: input?.role ?? "staff",
+      max_uses: input?.max_uses ?? 1,
+      code_length: input?.code_length ?? 10,
+      expires_at: input?.expires_at ?? null,
+    },
+  });
+}
+
+export async function registerWithInvite(input: { invite_code: string; email: string; password: string; name: string }): Promise<{ created: boolean }> {
+  return await apiFetch<{ created: boolean }>("/api/v1/auth/register-invite", {
+    method: "POST",
+    auth: false,
+    body: input,
+  });
+}

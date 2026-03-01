@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearAccessToken, getAccessToken } from "@/lib/api";
+import { clearAccessToken, getAccessToken, getMe } from "@/lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Container } from "./layout/Container";
 
@@ -22,18 +22,19 @@ function NavLink({ href, label, exact = false }: NavLinkProps) {
     <Link
       href={href}
       style={{
-        padding: "8px 12px",
-        borderRadius: 10,
+        padding: "9px 12px",
+        borderRadius: 12,
         textDecoration: "none",
-        border: active ? "1px solid #111" : "1px solid #ddd",
+        border: active ? "1px solid #111" : "2px solid #e5e7eb",
         background: active ? "#111" : "#fff",
         color: active ? "#fff" : "#111",
-        fontWeight: 700,
+        fontWeight: 800,
         fontSize: 13,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
         whiteSpace: "nowrap",
+        boxShadow: active ? "0 1px 0 rgba(0,0,0,0.2)" : "0 1px 0 rgba(0,0,0,0.05)",
       }}
     >
       {label}
@@ -85,76 +86,67 @@ function ReportsMenu() {
   }, []);
 
   return (
-    <div style={{ position: "relative" }}>
+    <div style={{ position: "relative", display: "inline-block" }}>
       <button
         ref={btnRef}
         type="button"
         onClick={() => setOpen((v) => !v)}
-        aria-haspopup="menu"
-        aria-expanded={open}
         style={{
-          padding: "8px 12px",
-          borderRadius: 10,
-          border: active ? "1px solid #111" : "1px solid #ddd",
+          padding: "9px 12px",
+          borderRadius: 12,
+          border: active ? "1px solid #111" : "2px solid #e5e7eb",
           background: active ? "#111" : "#fff",
           color: active ? "#fff" : "#111",
           fontWeight: 800,
           fontSize: 13,
           cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: 6,
           whiteSpace: "nowrap",
+          boxShadow: active ? "0 1px 0 rgba(0,0,0,0.2)" : "0 1px 0 rgba(0,0,0,0.05)",
         }}
       >
-        売上レポート <span style={{ opacity: 0.8, fontSize: 11 }}>{open ? "▲" : "▼"}</span>
+        売上レポート ▾
       </button>
 
-      {open ? (
+      {open && (
         <div
           ref={panelRef}
-          role="menu"
           style={{
             position: "absolute",
-            top: "calc(100% + 8px)",
             right: 0,
-            minWidth: 220,
+            top: "calc(100% + 8px)",
+            width: 220,
             background: "#fff",
-            border: "1px solid #e5e5e5",
-            borderRadius: 12,
-            boxShadow: "0 8px 20px rgba(0,0,0,0.08)",
+            border: "1px solid #e5e7eb",
+            borderRadius: 14,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
             padding: 8,
-            zIndex: 200,
+            zIndex: 50,
           }}
         >
           {items.map((it) => {
-            const itemActive = isActivePath(pathname, it.href, it.href === "/sales/dashboard");
+            const a = isActivePath(pathname, it.href, false);
             return (
               <Link
                 key={it.href}
                 href={it.href}
-                role="menuitem"
                 onClick={() => setOpen(false)}
                 style={{
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
+                  display: "block",
                   padding: "10px 10px",
                   borderRadius: 10,
                   textDecoration: "none",
                   color: "#111",
-                  background: itemActive ? "#f3f3f3" : "#fff",
-                  fontWeight: itemActive ? 900 : 800,
+                  background: a ? "#f3f4f6" : "transparent",
+                  fontWeight: 700,
                   fontSize: 13,
                 }}
               >
                 {it.label}
-                <span style={{ opacity: 0.5 }}>→</span>
               </Link>
             );
           })}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
@@ -162,10 +154,20 @@ function ReportsMenu() {
 export default function ClientNav() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
+  const [role, setRole] = useState<string>("staff");
 
   useEffect(() => {
-    setAuthed(!!getAccessToken());
+    const ok = !!getAccessToken();
+    setAuthed(ok);
+    if (!ok) return;
+
+    // 権限（role）取得：売上の表示/非表示に利用
+    getMe()
+      .then((me) => setRole(me.role))
+      .catch(() => setRole("staff"));
   }, []);
+
+  const canViewSales = role === "admin" || role === "manager";
 
   function onLogout() {
     clearAccessToken();
@@ -176,16 +178,13 @@ export default function ClientNav() {
   if (!authed) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b bg-white">
-      {/* ★ヘッダーも Container で幅統一（レポート想定で wide） */}
+    <header className="sticky top-0 z-50 border-b" style={{ background: "#f4f4f5" }}>
       <Container size="wide" className="px-4 py-3">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* 左：ロゴ */}
           <Link href="/dashboard" style={{ textDecoration: "none", color: "#111" }}>
-            <div style={{ fontWeight: 900, fontSize: 16, whiteSpace: "nowrap" }}>VLP System</div>
+            <div style={{ fontWeight: 950, fontSize: 18, whiteSpace: "nowrap" }}>VLPsystem</div>
           </Link>
 
-          {/* 右：最初のメニュー5項目（常設）＋レポート＋Logout */}
           <div
             style={{
               display: "flex",
@@ -198,20 +197,23 @@ export default function ClientNav() {
           >
             <NavLink href="/dashboard" label="メニュー" exact />
             <NavLink href="/work-orders" label="作業指示書" />
-            <NavLink href="/cars" label="車両関係" />
-            <NavLink href="/billing" label="見積 / 請求書" />
+            <NavLink href="/cars" label="車両一覧" />
+            <NavLink href="/billing" label="見積・請求書" />
             <NavLink href="/masters" label="各種マスタ登録" />
-            <ReportsMenu />
+            <NavLink href="/sales/expenses" label="経費一覧" />
+
+            {canViewSales ? <ReportsMenu /> : null}
+            {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
 
             <button
               onClick={onLogout}
               style={{
-                padding: "8px 12px",
-                borderRadius: 10,
-                border: "1px solid #ddd",
+                padding: "9px 12px",
+                borderRadius: 12,
+                border: "2px solid #e5e7eb",
                 background: "#fff",
                 cursor: "pointer",
-                fontWeight: 700,
+                fontWeight: 800,
                 fontSize: 13,
                 whiteSpace: "nowrap",
                 marginLeft: 6,

@@ -7,17 +7,25 @@ from typing import Any, Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-
 # ============================================================
 # Password hashing
 # ============================================================
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# bcrypt has a 72-byte input limit (bytes, not characters).
+_BCRYPT_MAX_BYTES = 72
+
 
 def get_password_hash(password: str) -> str:
     if not isinstance(password, str) or not password:
         raise ValueError("password must be a non-empty string")
+
+    # IMPORTANT: bcrypt truncates >72 bytes; do NOT truncate here.
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) > _BCRYPT_MAX_BYTES:
+        raise ValueError("password is too long (bcrypt limit is 72 bytes)")
+
     return pwd_context.hash(password)
 
 

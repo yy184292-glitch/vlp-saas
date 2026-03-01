@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, String
+from sqlalchemy import Column, DateTime, String, Integer
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import Base
@@ -35,6 +35,12 @@ class StoreORM(Base):
     bank_account_type = Column(String(16), nullable=True)  # 普通 / 当座 等（自由入力）
     bank_account_number = Column(String(32), nullable=True)
     bank_account_holder = Column(String(128), nullable=True)
+
+    # 契約プラン（例: basic / standard / pro）
+    plan_code = Column(String(32), nullable=False, server_default="basic")
+
+    # 利用席数（ユーザー数）上限（basic=5, standard=10 など）
+    seat_limit = Column(Integer, nullable=False, server_default="5")
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, index=True)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)

@@ -10,6 +10,8 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.dependencies.request_user import attach_current_user
+from app.dependencies.permissions import require_roles
 from app.models.billing import BillingDocumentORM, BillingLineORM
 from app.models.inventory import StockMoveORM, InventoryItemORM
 from app.models.work import WorkORM
@@ -27,7 +29,7 @@ from app.schemas.reports import (
     DashboardSummaryOut,
 )
 
-router = APIRouter(tags=["reports"])
+router = APIRouter(tags=["reports"], dependencies=[Depends(attach_current_user), Depends(require_roles("admin", "manager"))])
 
 
 def _get_actor_store_id(request: Request) -> Optional[UUID]:

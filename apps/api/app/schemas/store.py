@@ -24,6 +24,9 @@ class StoreBase(BaseModel):
     bank_account_number: Optional[str] = Field(default=None, max_length=32)
     bank_account_holder: Optional[str] = Field(default=None, max_length=128)
 
+    plan_code: Optional[str] = Field(default=None, max_length=32)
+    seat_limit: Optional[int] = Field(default=None, ge=1, le=500)
+
 
 class StoreCreateIn(StoreBase):
     pass
@@ -46,11 +49,16 @@ class StoreUpdateIn(BaseModel):
     bank_account_number: Optional[str] = Field(default=None, max_length=32)
     bank_account_holder: Optional[str] = Field(default=None, max_length=128)
 
+    plan_code: Optional[str] = Field(default=None, max_length=32)
+    seat_limit: Optional[int] = Field(default=None, ge=1, le=500)
+
 
 class StoreOut(StoreBase):
     id: UUID
     created_at: datetime
     updated_at: datetime
+    plan_code: str
+    seat_limit: int
 
     class Config:
         from_attributes = True

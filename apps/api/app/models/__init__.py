@@ -26,3 +26,4 @@ from app.models import billing  # noqa: F401
 from app.models import store  # noqa: F401
 from app.models import customer  # noqa: F401
 from app.models import asset  # noqa: F401
+from app.models import invite  # noqa: F401

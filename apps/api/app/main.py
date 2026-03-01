@@ -27,6 +27,7 @@ from app.routes.customers import router as customers_router
 from app.routes.inventory import router as inventory_router
 from app.routes.work import router as work_router
 from app.routes.reports import router as reports_router
+from app.routes.invites import router as invites_router
 
 logger = logging.getLogger(__name__)
 
@@ -169,4 +170,5 @@ app.include_router(customers_router, prefix=API_PREFIX)
 app.include_router(inventory_router, prefix=API_PREFIX)  
 app.include_router(work_router, prefix=API_PREFIX)       
 app.include_router(reports_router, prefix=API_PREFIX)
+app.include_router(invites_router, prefix=API_PREFIX)
 
