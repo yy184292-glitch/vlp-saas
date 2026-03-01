@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 type ExpenseOut = {
+  // ...
+
   id: string;
   store_id: string;
 
@@ -293,7 +295,7 @@ export default function ExpensesPage() {
               <div className="space-y-1">
                 <div className="text-xs text-muted-foreground">カテゴリ</div>
                 <Input
-                  placeholder="例: 消耗品費"
+                  placeholder="例: 消耗品費" list="expenseCategories"
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
                   className="w-[180px]"
@@ -441,7 +443,7 @@ export default function ExpensesPage() {
             <div className="space-y-1">
               <div className="text-xs text-muted-foreground">カテゴリ</div>
               <Input
-                placeholder="例: 消耗品費"
+                placeholder="例: 消耗品費" list="expenseCategories"
                 value={form.category}
                 onChange={(e) => setForm((p) => ({ ...p, category: e.target.value }))}
               />
@@ -507,5 +509,157 @@ export default function ExpensesPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+
+type AttachmentOut = {
+  id: string;
+  expense_id: string;
+  filename: string;
+  content_type: string;
+  created_at: string;
+  has_ocr: boolean;
+};
+
+function ReceiptCell({ expenseId }: { expenseId: string }) {
+  const [open, setOpen] = React.useState(false);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [items, setItems] = React.useState<AttachmentOut[]>([]);
+  const fileRef = React.useRef<HTMLInputElement | null>(null);
+
+  const load = React.useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await apiFetch<AttachmentOut[]>(`/api/v1/expenses/${expenseId}/attachments`);
+      setItems(res || []);
+    } catch (e) {
+      const ae = e as ApiError;
+      setError(ae.message ?? "読込に失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }, [expenseId]);
+
+  React.useEffect(() => {
+    if (open) void load();
+  }, [open, load]);
+
+  const upload = React.useCallback(async () => {
+    const f = fileRef.current?.files?.[0];
+    if (!f) return;
+
+    setLoading(true);
+    setError(null);
+    try {
+      const fd = new FormData();
+      fd.append("file", f);
+
+      // apiFetch は JSON 前提なので、ここは fetch を直で使う（Authorizationヘッダ付与のため apiFetch を拡張するより安全）
+      const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+      const r = await fetch(`/api/v1/expenses/${expenseId}/attachments?do_ocr=true&ocr_lang=jpn%2Beng`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: fd,
+      });
+      if (!r.ok) {
+        const t = await r.text();
+        throw new Error(t || `Upload failed: ${r.status}`);
+      }
+      await load();
+      if (fileRef.current) fileRef.current.value = "";
+    } catch (e: any) {
+      setError(e?.message ?? "アップロードに失敗しました");
+    } finally {
+      setLoading(false);
+    }
+  }, [expenseId, load]);
+
+  const download = React.useCallback(async (attachmentId: string, filename: string) => {
+    const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+    const r = await fetch(`/api/v1/expenses/attachments/${attachmentId}/download`, {
+      method: "GET",
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+    });
+    if (!r.ok) return;
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, []);
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="outline" className="bg-white/70 hover:bg-white">
+          領収書
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-2xl">
+        <DialogHeader>
+          <DialogTitle>領収書・添付</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-3">
+          {error ? <div className="text-sm text-destructive">{error}</div> : null}
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <input ref={fileRef} type="file" accept="image/*" />
+            <Button onClick={upload} disabled={loading}>
+              アップロード（OCR）
+            </Button>
+            <div className="text-xs text-muted-foreground">
+              画像から自動で文字を読み取ります（jpn+eng）。
+            </div>
+          </div>
+
+          <div className="rounded-xl border bg-white">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>ファイル</TableHead>
+                  <TableHead>OCR</TableHead>
+                  <TableHead className="text-right">操作</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {items.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={3} className="text-sm text-muted-foreground">
+                      まだ添付がありません
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  items.map((a) => (
+                    <TableRow key={a.id}>
+                      <TableCell className="max-w-[380px] truncate">{a.filename}</TableCell>
+                      <TableCell>{a.has_ocr ? "あり" : "—"}</TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="outline" className="bg-white/70 hover:bg-white" onClick={() => download(a.id, a.filename)}>
+                          ダウンロード
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" className="bg-white/70 hover:bg-white" onClick={() => setOpen(false)}>
+            閉じる
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

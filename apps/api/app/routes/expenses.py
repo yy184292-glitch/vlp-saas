@@ -2,12 +2,19 @@ from __future__ import annotations
 
 import csv
 import io
+import os
+from pathlib import Path
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response
+import pytesseract
+from PIL import Image
+
+
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Request
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
@@ -15,6 +22,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.deps.auth import get_current_user
 from app.models.expense import ExpenseORM
+from app.models.expense_attachment import ExpenseAttachmentORM
+from app.models.master_category import ExpenseCategoryORM
+from app.models.store_setting import StoreSettingORM
 from app.models.user import User
 
 router = APIRouter(tags=["expenses"])
@@ -39,6 +49,61 @@ def _to_date(value: str) -> date:
 def _resolve_store_id(user: User, store_id: Optional[UUID]) -> UUID:
     """store_id の決定
 
+def _normalize_name(name: str) -> str:
+    return " ".join((name or "").strip().split())
+
+
+def _get_or_create_store_settings(db: Session, store_id: UUID) -> StoreSettingORM:
+    row = db.get(StoreSettingORM, store_id)
+    if row:
+        return row
+    row = StoreSettingORM(store_id=store_id)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _ensure_expense_category(db: Session, store_id: UUID, category: str) -> None:
+    name = _normalize_name(category)
+    if not name:
+        return
+    # 既存があれば usage_count を増やす
+    row = db.execute(
+        select(ExpenseCategoryORM).where(
+            ExpenseCategoryORM.store_id == store_id, ExpenseCategoryORM.name == name
+        )
+    ).scalar_one_or_none()
+    if row:
+        row.usage_count = int(row.usage_count or 0) + 1
+        db.add(row)
+        return
+    # 無ければ作る（競合したら既存を採用）
+    row = ExpenseCategoryORM(store_id=store_id, name=name, is_system=False, usage_count=1)
+    db.add(row)
+    try:
+        db.flush()
+    except Exception:
+        db.rollback()
+        # 競合時は何もしない（次回以降にusage_countが増える）
+        return
+
+
+def _safe_filename(name: str) -> str:
+    # パス注入対策：ファイル名のみ残す
+    base = os.path.basename(name or "file")
+    base = base.replace("\\", "_").replace("/", "_").strip()
+    if not base:
+        base = "file"
+    return base
+
+
+def _uploads_root() -> Path:
+    # api/ 配下に uploads を作る
+    here = Path(__file__).resolve()
+    # app/routes/expenses.py -> app -> api root
+    api_root = here.parents[2]
+    return api_root / "uploads"
     - 原則: user.store_id があればそれを固定（他店を見れない）
     - 例外: user.store_id が無い運用（管理者）ならクエリ/ボディの store_id を必須
     """
@@ -323,4 +388,151 @@ def export_expenses_csv(
         content=data,
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ============================================================
+# Attachments (receipts)
+# ============================================================
+
+class ExpenseAttachmentOut(BaseModel):
+    id: UUID
+    expense_id: UUID
+    filename: str
+    content_type: str
+    created_at: datetime
+    has_ocr: bool = False
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/expenses/{expense_id}/attachments", response_model=List[ExpenseAttachmentOut])
+def list_expense_attachments(
+    expense_id: UUID,
+    store_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> List[ExpenseAttachmentOut]:
+    sid = _resolve_store_id(user, store_id)
+    exp = db.get(ExpenseORM, expense_id)
+    if not exp or exp.store_id != sid:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    stmt = (
+        select(ExpenseAttachmentORM)
+        .where(ExpenseAttachmentORM.store_id == sid, ExpenseAttachmentORM.expense_id == expense_id)
+        .order_by(ExpenseAttachmentORM.created_at.desc())
+    )
+    rows = db.execute(stmt).scalars().all()
+
+    out: List[ExpenseAttachmentOut] = []
+    for r in rows:
+        out.append(
+            ExpenseAttachmentOut(
+                id=r.id,
+                expense_id=r.expense_id,
+                filename=r.filename,
+                content_type=r.content_type,
+                created_at=r.created_at,
+                has_ocr=bool(r.ocr_text),
+            )
+        )
+    return out
+
+
+@router.post("/expenses/{expense_id}/attachments", response_model=ExpenseAttachmentOut)
+async def upload_expense_attachment(
+    request: Request,
+    expense_id: UUID,
+    file: UploadFile = File(...),
+    store_id: Optional[UUID] = Query(None),
+    do_ocr: bool = Query(True),
+    ocr_lang: str = Query("jpn+eng"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> ExpenseAttachmentOut:
+    sid = _resolve_store_id(user, store_id)
+
+    exp = db.get(ExpenseORM, expense_id)
+    if not exp or exp.store_id != sid:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not file:
+        raise HTTPException(status_code=400, detail="file required")
+
+    contents = await file.read()
+    if len(contents) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 20MB)")
+
+    fname = _safe_filename(file.filename or "receipt")
+    content_type = file.content_type or "application/octet-stream"
+
+    # 保存先
+    base_dir = _uploads_root() / "expenses" / str(sid) / str(expense_id)
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    # ファイル名衝突回避
+    save_name = f"{uuid4()}_{fname}"
+    save_path = base_dir / save_name
+    save_path.write_bytes(contents)
+
+    # OCR（画像のみ：png/jpg/jpeg/webp）
+    ocr_text = None
+    used_lang = None
+    if do_ocr and content_type.lower().startswith("image/"):
+        try:
+            img = Image.open(save_path)
+            # そこそこ効く設定：向き補正は別途だが、まずはベース
+            ocr_text = pytesseract.image_to_string(img, lang=ocr_lang) or None
+            used_lang = ocr_lang
+        except Exception:
+            # OCR失敗しても添付自体は成功扱い
+            ocr_text = None
+            used_lang = None
+
+    row = ExpenseAttachmentORM(
+        store_id=sid,
+        expense_id=expense_id,
+        filename=fname,
+        content_type=content_type,
+        storage_path=str(save_path),
+        size_bytes=str(len(contents)),
+        ocr_text=ocr_text,
+        ocr_lang=used_lang,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+
+    return ExpenseAttachmentOut(
+        id=row.id,
+        expense_id=row.expense_id,
+        filename=row.filename,
+        content_type=row.content_type,
+        created_at=row.created_at,
+        has_ocr=bool(row.ocr_text),
+    )
+
+
+@router.get("/expenses/attachments/{attachment_id}/download")
+def download_expense_attachment(
+    attachment_id: UUID,
+    store_id: Optional[UUID] = Query(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    sid = _resolve_store_id(user, store_id)
+    row = db.get(ExpenseAttachmentORM, attachment_id)
+    if not row or row.store_id != sid:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    path = Path(row.storage_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found on server")
+
+    return FileResponse(
+        path=str(path),
+        media_type=row.content_type or "application/octet-stream",
+        filename=row.filename,
     )

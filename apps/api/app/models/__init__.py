@@ -27,3 +27,11 @@ from app.models import store  # noqa: F401
 from app.models import customer  # noqa: F401
 from app.models import asset  # noqa: F401
 from app.models import invite  # noqa: F401
+
+from app.models import expense_attachment  # noqa: F401
+
+from app.models import master_category  # noqa: F401
+
+from app.models import store_setting  # noqa: F401
+
+from app.models import expense_source  # noqa: F401

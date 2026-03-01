@@ -13,6 +13,10 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.inventory import InventoryItemORM, StockMoveORM
+from app.models.expense import ExpenseORM
+from app.models.expense_source import ExpenseSourceORM
+from app.models.master_category import ExpenseCategoryORM
+from app.models.store_setting import StoreSettingORM
 from app.schemas.inventory import (
     InventoryItemCreateIn,
     InventoryItemOut,
@@ -58,6 +62,37 @@ def _require_store_id(request: Request, body_store_id: Optional[UUID]) -> UUID:
     return store_id
 
 
+
+def _get_or_create_store_settings(db: Session, store_id: UUID) -> StoreSettingORM:
+    row = db.get(StoreSettingORM, store_id)
+    if row:
+        return row
+    row = StoreSettingORM(store_id=store_id)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+def _ensure_expense_category(db: Session, store_id: UUID, name: str) -> None:
+    name = " ".join((name or "").strip().split())
+    if not name:
+        return
+    row = db.execute(
+        select(ExpenseCategoryORM).where(
+            ExpenseCategoryORM.store_id == store_id, ExpenseCategoryORM.name == name
+        )
+    ).scalar_one_or_none()
+    if row:
+        row.usage_count = int(row.usage_count or 0) + 1
+        db.add(row)
+        return
+    db.add(ExpenseCategoryORM(store_id=store_id, name=name, is_system=True, usage_count=1))
+    try:
+        db.flush()
+    except Exception:
+        db.rollback()
+        return
 # ============================================================
 # InventoryItem CRUD
 # ============================================================
@@ -263,6 +298,47 @@ def create_stock_move(
         created_at=now,
     )
     db.add(mv)
+
+# 在庫入庫 → 経費（部材）自動計上（店舗設定でON/OFF）
+    if body.move_type == "in":
+        settings = _get_or_create_store_settings(db, store_id)
+        if bool(settings.auto_expense_on_stock_in):
+            # 二重作成防止（source_type+source_id UNIQUE）
+            exists = db.execute(
+                select(ExpenseSourceORM).where(
+                    ExpenseSourceORM.source_type == "stock_move",
+                    ExpenseSourceORM.source_id == mv.id,
+                )
+            ).scalar_one_or_none()
+
+            if not exists:
+                category = "部材"
+                _ensure_expense_category(db, store_id, category)
+
+                exp = ExpenseORM(
+                    id=uuid4(),
+                    store_id=store_id,
+                    expense_date=now.date(),
+                    category=category,
+                    title=f"入庫: {item.name} × {qty}",
+                    vendor=None,
+                    amount=(unit_cost * qty),
+                    payment_method=None,
+                    note=(body.note or "").strip() or None,
+                    created_at=now,
+                    updated_at=now,
+                )
+                db.add(exp)
+                db.add(
+                    ExpenseSourceORM(
+                        id=uuid4(),
+                        store_id=store_id,
+                        expense_id=exp.id,
+                        source_type="stock_move",
+                        source_id=mv.id,
+                        created_at=now,
+                    )
+                )
 
     try:
         db.commit()
