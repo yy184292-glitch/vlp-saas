@@ -199,6 +199,10 @@ export type Car = {
   modelCode: string | null;
   color: string | null;
 
+  // ★追加: 実入力（仕入れ値 / 売却値）
+  purchasePrice: number | null; // purchase_price
+  salePrice: number | null; // sale_price
+
   expectedBuyPrice: number | null;
   expectedSellPrice: number | null;
   expectedProfit: number | null;
@@ -225,6 +229,10 @@ export type CarInput = {
   vin?: string | null;
   model_code?: string | null;
   color?: string | null;
+
+  // ★追加: 実入力（仕入れ値 / 売却値）
+  purchase_price?: number | null;
+  sale_price?: number | null;
 };
 
 type CarsListResponse = {
@@ -272,6 +280,10 @@ export function normalizeCar(raw: unknown): Car {
     modelCode: toNullableString(r.model_code ?? r.modelCode),
     color: toNullableString(r.color),
 
+    // ★追加: 実入力（仕入れ値 / 売却値）
+    purchasePrice: toNullableNumber(r.purchase_price ?? r.purchasePrice),
+    salePrice: toNullableNumber(r.sale_price ?? r.salePrice),
+
     expectedBuyPrice: toNullableNumber(r.expected_buy_price ?? r.expectedBuyPrice),
     expectedSellPrice: toNullableNumber(r.expected_sell_price ?? r.expectedSellPrice),
     expectedProfit: toNullableNumber(r.expected_profit ?? r.expectedProfit),
@@ -314,6 +326,25 @@ export async function getCar(carId: string): Promise<Car> {
     method: "GET",
     auth: true,
   });
+  return normalizeCar(data);
+}
+
+// ★追加: 車両の部分更新（仕入れ値/売却値など）
+export async function updateCar(carId: string, input: Partial<CarInput>): Promise<Car> {
+  if (!carId) {
+    throw new ApiError({
+      status: 400,
+      url: buildUrl("/api/v1/cars/:id"),
+      message: "carId is required",
+    });
+  }
+
+  const data = await apiFetch<unknown>(`/api/v1/cars/${encodeURIComponent(carId)}`, {
+    method: "PATCH",
+    auth: true,
+    body: input,
+  });
+
   return normalizeCar(data);
 }
 
@@ -437,7 +468,6 @@ export async function calculateValuation(payload: ValuationCalculateRequest): Pr
   return normalizeCalculateResult(res);
 }
 
-
 // ===== Domain: Reports =====
 export type SalesMode = "exclusive" | "inclusive";
 
@@ -531,7 +561,6 @@ export async function getDashboardSummary(args: {
     auth: true,
   });
 }
-
 
 // ===== Reports: By Work =====
 export type ProfitByWorkRow = {
