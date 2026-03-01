@@ -3,7 +3,7 @@ import AppShell from "../_components/AppShell";
 
 export default function CarsLayout({ children }: { children: ReactNode }) {
   return (
-    <AppShell container="narrow" showRightPanel={false}>
+    <AppShell container="narrow" showCalendar={false}>
       {children}
     </AppShell>
   );
