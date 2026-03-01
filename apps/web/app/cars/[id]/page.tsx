@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ApiError, Car, getCar, listCarValuations, updateCar } from "@/src/lib/api";
+import { ApiError, Car, getCar, listCarValuations, updateCar } from "@/lib/api";
 
 type Params = { id: string };
 
