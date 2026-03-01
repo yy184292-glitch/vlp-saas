@@ -1,42 +1,56 @@
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
 
 from alembic import context
+from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 
 from app.core.settings import settings
 
-# ログ設定
+# env 読み込み
 config = context.config
-import os
-from dotenv import load_dotenv
-
 load_dotenv()
 
-# AlembicにDATABASE_URLを使わせる（最重要）
+# Alembic に DATABASE_URL を反映（.env から）
 database_url = os.getenv("DATABASE_URL")
 if not database_url:
     raise RuntimeError("DATABASE_URL が .env に設定されていません")
 
 config.set_main_option("sqlalchemy.url", database_url)
+
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# ★settings から DB URL（DATABASE_URL alias 済み）
+
 def get_url() -> str:
+    """
+    settings 由来のURLを使う（念のため postgres:// を postgresql:// に補正）
+    """
     url = settings.sqlalchemy_database_url
-    # もし古い postgres:// が混ざってた場合の保険
     if url.startswith("postgres://"):
         url = url.replace("postgres://", "postgresql://", 1)
     return url
 
-# ★Alembic は db/session/engine を絶対 import しない
+
+# --- metadata ---
 from app.models.base import Base  # noqa: E402
 
-# ★モデルを明示 import（__init__.py は空にする）
-from app.models import user  # noqa: F401, E402
-from app.models import car   # noqa: F401, E402
+# ↓↓↓ ここが重要：モデルを import して metadata に登録させる
+# 既存
+from app import models  # noqa: F401, E402
+
+# 追加：請求/見積（すでに存在するので必須）
+from app.models import billing  # noqa: F401, E402
+from app.models import billing_sequence  # noqa: F401, E402
+from app.models import system_setting  # noqa: F401, E402
+
+# 追加予定：店舗/顧客/画像（次ステップでファイルを作る）
+# ※ 先にファイルを作ってからコメントを外してください
+from app.models import store  # noqa: F401, E402
+from app.models import customer  # noqa: F401, E402
+from app.models import asset  # noqa: F401, E402
 
 target_metadata = Base.metadata
 

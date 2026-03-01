@@ -1,50 +1,62 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { getAccessToken } from "@/lib/api";
+
+function safeHasToken(): boolean {
+  try {
+    const t = getAccessToken();
+    return !!t;
+  } catch {
+    return false;
+  }
+}
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const [ready, setReady] = useState(false);
-  const [authed, setAuthed] = useState(false);
+  const isLogin = useMemo(() => pathname === "/login", [pathname]);
+
+  const [status, setStatus] = useState<"checking" | "authed" | "redirecting">("checking");
 
   // 連打防止
   const redirectingRef = useRef(false);
 
   useEffect(() => {
-    // /login は必ず素通し（ここでナビ連打しない）
-    if (pathname === "/login") {
+    // login は素通し
+    if (isLogin) {
       redirectingRef.current = false;
-      setAuthed(true);
-      setReady(true);
+      setStatus("authed");
       return;
     }
 
-    const token = getAccessToken();
-
-    if (token) {
+    const ok = safeHasToken();
+    if (ok) {
       redirectingRef.current = false;
-      setAuthed(true);
-      setReady(true);
+      setStatus("authed");
       return;
     }
 
-    // tokenなし → /login へ。ただし1回だけ
-    setAuthed(false);
-    setReady(true);
+    // tokenなし → loginへ（ただし画面は消さずに “redirecting” 表示）
+    setStatus("redirecting");
 
     if (!redirectingRef.current) {
       redirectingRef.current = true;
+      // 余計な再レンダの瞬間を避けるため、同期的にreplace
       router.replace("/login");
     }
-  }, [pathname, router]);
+  }, [isLogin, pathname, router]);
 
-  if (!ready) return <p style={{ padding: 16 }}>Checking auth...</p>;
-  if (!authed) return null;
+  if (status === "checking") {
+    return <div style={{ padding: 16, color: "#666" }}>Checking auth...</div>;
+  }
+
+  if (status === "redirecting") {
+    return <div style={{ padding: 16, color: "#666" }}>Redirecting to login...</div>;
+  }
 
   return <>{children}</>;
 }

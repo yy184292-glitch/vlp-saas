@@ -436,3 +436,165 @@ export async function calculateValuation(payload: ValuationCalculateRequest): Pr
   });
   return normalizeCalculateResult(res);
 }
+
+
+// ===== Domain: Reports =====
+export type SalesMode = "exclusive" | "inclusive";
+
+export type ProfitMonthlyRow = {
+  month: string; // YYYY-MM-DD (month start)
+  sales: number;
+  cost: number;
+  profit: number;
+};
+
+export type ProfitMonthlyResponse = {
+  date_from: string;
+  date_to: string;
+  rows: ProfitMonthlyRow[];
+};
+
+export type ProfitDailyRow = {
+  day: string; // YYYY-MM-DD
+  sales: number;
+  cost: number;
+  profit: number;
+};
+
+export type ProfitDailyResponse = {
+  date_from: string;
+  date_to: string;
+  rows: ProfitDailyRow[];
+};
+
+export type DashboardSummary = {
+  date_from: string;
+  date_to: string;
+  sales: number;
+  cost: number;
+  profit: number;
+  margin_rate: number;
+  issued_count: number;
+  inventory_value: number;
+};
+
+export async function getProfitMonthly(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<ProfitMonthlyResponse> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<ProfitMonthlyResponse>(`/api/v1/reports/profit-monthly?${p.toString()}`, {
+    method: "GET",
+    auth: true,
+  });
+}
+
+export async function getProfitDaily(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<ProfitDailyResponse> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<ProfitDailyResponse>(`/api/v1/reports/profit-daily?${p.toString()}`, {
+    method: "GET",
+    auth: true,
+  });
+}
+
+export async function getDashboardSummary(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<DashboardSummary> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<DashboardSummary>(`/api/v1/dashboard/summary?${p.toString()}`, {
+    method: "GET",
+    auth: true,
+  });
+}
+
+
+// ===== Reports: By Work =====
+export type ProfitByWorkRow = {
+  work_id: string;
+  work_name: string;
+  sales: number;
+  cost: number;
+  profit: number;
+  margin_rate: number; // 0..1（APIが返さない場合はUI側でも算出可）
+};
+
+export type ProfitByWorkResponse = {
+  date_from: string;
+  date_to: string;
+  rows: ProfitByWorkRow[];
+};
+
+export async function getProfitByWork(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<ProfitByWorkResponse> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<ProfitByWorkResponse>(`/api/v1/reports/profit-by-work?${p.toString()}`, {
+    method: "GET",
+    auth: true,
+  });
+}
+
+// ===== Reports: Cost By Item =====
+export type CostByItemRow = {
+  item_id: string;
+  item_name: string;
+  cost: number;
+  quantity?: number;
+};
+
+export type CostByItemResponse = {
+  date_from: string;
+  date_to: string;
+  rows: CostByItemRow[];
+};
+
+export async function getCostByItem(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<CostByItemResponse> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<CostByItemResponse>(`/api/v1/reports/cost-by-item?${p.toString()}`, {
+    method: "GET",
+    auth: true,
+  });
+}

@@ -2,34 +2,22 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, Final, Optional, TypedDict
+from typing import Any, Optional
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# ============================================================
-# Settings (single source of truth)
-# ============================================================
-def _get_env(name: str, default: str | None = None) -> str | None:
-    v = os.getenv(name)
-    return v if v not in (None, "") else default
-
-
-SECRET_KEY: Final[str] = _get_env("SECRET_KEY", "CHANGE_THIS_TO_RANDOM_SECRET")  # Renderで必ずSECRET_KEYを設定する
-ALGORITHM: Final[str] = _get_env("JWT_ALGORITHM", "HS256") or "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES: Final[int] = int(
-    _get_env("ACCESS_TOKEN_EXPIRE_MINUTES", str(60 * 24 * 7)) or str(60 * 24 * 7)
-)
 
 # ============================================================
 # Password hashing
 # ============================================================
-pwd_context = CryptContext(schemes=["pbkdf2_sha256"], deprecated="auto")
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
-def hash_password(password: str) -> str:
+def get_password_hash(password: str) -> str:
     if not isinstance(password, str) or not password:
-        raise ValueError("Password cannot be empty")
+        raise ValueError("password must be a non-empty string")
     return pwd_context.hash(password)
 
 
@@ -42,39 +30,88 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
         return False
 
 
-class TokenPayload(TypedDict):
-    sub: str
-    exp: int
-    iat: int
-    type: str
+# ============================================================
+# JWT
+# ============================================================
+
+def _get_secret_key() -> str:
+    """
+    本番は環境変数 SECRET_KEY を必須にしたいが、
+    まずローカルで動かすためにフォールバックを用意。
+    """
+    # settings があるなら優先して読む（無ければ env）
+    try:
+        from app.core.settings import settings  # type: ignore
+        key = getattr(settings, "SECRET_KEY", None)
+        if isinstance(key, str) and key.strip():
+            return key.strip()
+    except Exception:
+        pass
+
+    key = os.getenv("SECRET_KEY", "").strip()
+    if key:
+        return key
+
+    # DEV fallback（本番では必ず env 設定すること）
+    return "DEV_ONLY_INSECURE_SECRET_KEY_CHANGE_ME"
 
 
-def create_access_token(subject: str) -> str:
+def _get_algorithm() -> str:
+    try:
+        from app.core.settings import settings  # type: ignore
+        alg = getattr(settings, "ALGORITHM", None)
+        if isinstance(alg, str) and alg.strip():
+            return alg.strip()
+    except Exception:
+        pass
+    return os.getenv("ALGORITHM", "HS256").strip() or "HS256"
+
+
+def create_access_token(
+    subject: str,
+    expires_delta: Optional[timedelta] = None,
+    extra_claims: Optional[dict[str, Any]] = None,
+) -> str:
     if not subject:
-        raise ValueError("Subject cannot be empty")
+        raise ValueError("subject is required")
 
     now = datetime.now(timezone.utc)
-    payload: TokenPayload = {
+    expire = now + (expires_delta or timedelta(hours=24))
+
+    to_encode: dict[str, Any] = {
         "sub": subject,
-        "exp": int((now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)).timestamp()),
         "iat": int(now.timestamp()),
-        "type": "access",
+        "exp": int(expire.timestamp()),
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    if extra_claims:
+        to_encode.update(extra_claims)
+
+    secret_key = _get_secret_key()
+    algorithm = _get_algorithm()
+    return jwt.encode(to_encode, secret_key, algorithm=algorithm)
 
 
-def decode_access_token(token: str) -> Optional[str]:
-    if not token:
-        return None
+def decode_token(token: str) -> dict[str, Any]:
+    """
+    必要なら users/me 等で使えるように用意。
+    """
+    secret_key = _get_secret_key()
+    algorithm = _get_algorithm()
     try:
-        payload: Dict[str, Any] = jwt.decode(token, key=SECRET_KEY, algorithms=[ALGORITHM])
-        sub = payload.get("sub")
-        if not isinstance(sub, str) or not sub:
-            return None
-        if payload.get("type") not in (None, "access"):
-            return None
-        return sub
-    except JWTError:
-        return None
-    except Exception:
-        return None
+        payload = jwt.decode(token, secret_key, algorithms=[algorithm])
+        if not isinstance(payload, dict):
+            raise JWTError("invalid payload")
+        return payload
+    except JWTError as e:
+        raise ValueError(f"Invalid token: {e}") from e
+
+
+# ============================================================
+# Backward-compatible aliases
+# ============================================================
+
+def decode_access_token(token: str) -> dict:
+    """
+    既存コード互換: dependencies/auth.py などが期待する関数名。
+    """
+    return decode_token(token)

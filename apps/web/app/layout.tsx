@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import AppShell from "./_components/AppShell";
+import "./globals.css";
 
 export const metadata = {
   title: "VLP SaaS",
@@ -8,9 +8,9 @@ export const metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
-      <body style={{ margin: 0, color: "#111", background: "#fafafa" }}>
-        <AppShell>{children}</AppShell>
+    <html lang="ja" suppressHydrationWarning>
+      <body className="min-h-screen bg-background text-foreground antialiased">
+        {children}
       </body>
     </html>
   );

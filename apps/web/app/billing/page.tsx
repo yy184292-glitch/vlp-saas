@@ -1,331 +1,345 @@
 "use client";
+
 import Link from "next/link";
-import React, { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-type BillingStatus = "draft" | "issued" | "void";
 type BillingKind = "estimate" | "invoice";
+type BillingStatus = "draft" | "issued" | "void";
 
-type BillingDoc = {
+type BillingOut = {
   id: string;
   store_id: string | null;
-  kind: string;
-  status: string;
+  kind: BillingKind;
+  status: BillingStatus;
+  doc_no: string | null;
   customer_name: string | null;
+
   subtotal: number;
   tax_total: number;
   total: number;
+
+  tax_rate: string; // APIが "0.1000" みたいな文字列で返すため
+  tax_mode: string;
+  tax_rounding: string;
+
   issued_at: string | null;
   created_at: string;
   updated_at: string;
 };
 
-type BillingLineIn = {
-  name: string;
-  qty: number;
-  unit?: string;
-  unit_price?: number;
-  cost_price?: number;
-};
+// ✅ env が無くてもローカルで動くようにデフォルトを持つ
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8000"
+).replace(/\/$/, "");
 
-type BillingCreateIn = {
-  kind: BillingKind;
-  status: BillingStatus;
-  store_id?: string | null;
-  customer_name?: string;
-  lines: BillingLineIn[];
-  meta?: Record<string, unknown>;
-};
-
-const API_BASE = (process.env.NEXT_PUBLIC_API_BASE_URL || "").replace(/\/$/, "");
-
-function formatYen(n: number): string {
-  return new Intl.NumberFormat("ja-JP", {
-    style: "currency",
-    currency: "JPY",
-    maximumFractionDigits: 0,
-  }).format(Number.isFinite(n) ? n : 0);
+function formatYen(n: number | string | null | undefined): string {
+  const v = typeof n === "string" ? Number(n) : Number(n ?? 0);
+  if (!Number.isFinite(v)) return "¥0";
+  return `¥${Math.trunc(v).toLocaleString()}`;
 }
 
-function safeNumber(v: unknown, fallback = 0): number {
-  const n = typeof v === "number" ? v : Number(v);
-  return Number.isFinite(n) ? n : fallback;
-}
-
-function getApiBaseOrThrow(): string {
-  if (!API_BASE) {
-    // mis-config を早期に検知（SSR/CSR どちらでも原因が分かる）
-    throw new Error("NEXT_PUBLIC_API_BASE_URL が未設定です");
-  }
-  return API_BASE;
+function formatDate(s: string | null | undefined): string {
+  if (!s) return "-";
+  const d = new Date(s);
+  if (Number.isNaN(d.getTime())) return s;
+  return d.toLocaleString();
 }
 
 async function fetchJson<T>(path: string, init?: RequestInit): Promise<T> {
-  const base = getApiBaseOrThrow();
-  const url = `${base}${path}`;
-
+  const url = `${API_BASE}${path}`;
   const res = await fetch(url, {
     ...init,
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers || {}),
     },
-    cache: "no-store",
   });
 
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new Error(`HTTP ${res.status}: ${text || res.statusText}`);
+    throw new Error(`${res.status} ${res.statusText}${text ? `: ${text}` : ""}`);
   }
 
+  // 204 などの可能性も考慮
+  const ct = res.headers.get("content-type") || "";
+  if (!ct.includes("application/json")) {
+    // @ts-expect-error: non-json response
+    return null;
+  }
   return (await res.json()) as T;
 }
 
 export default function BillingPage() {
-  // DB list
-  const [items, setItems] = useState<BillingDoc[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [err, setErr] = useState<string | null>(null);
+  const [items, setItems] = useState<BillingOut[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // create form
-  const [customerName, setCustomerName] = useState("");
-  const [kind, setKind] = useState<BillingKind>("invoice");
-  const [lines, setLines] = useState<BillingLineIn[]>([
-    { name: "作業費", qty: 1, unit_price: 10000 },
-  ]);
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [limit, setLimit] = useState(50);
+  const [offset, setOffset] = useState(0);
 
-  const previewTotal = useMemo(() => {
-    return lines.reduce((sum, ln) => {
-      const qty = safeNumber(ln.qty, 0);
-      const unit =
-        ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
-      return sum + Math.trunc(qty * unit);
-    }, 0);
-  }, [lines]);
+  const [kind, setKind] = useState<BillingKind | "">( "");
+  const [status, setStatus] = useState<BillingStatus | "">( "");
 
-  async function reload() {
+  const query = useMemo(() => {
+    const qs = new URLSearchParams();
+    qs.set("limit", String(limit));
+    qs.set("offset", String(offset));
+    if (kind) qs.set("kind", kind);
+    if (status) qs.set("status", status);
+    return qs.toString();
+  }, [limit, offset, kind, status]);
+
+  const reload = useCallback(async () => {
     setLoading(true);
-    setErr(null);
+    setError(null);
     try {
-      const data = await fetchJson<BillingDoc[]>(
-        `/api/v1/billing?limit=100&offset=0`
-      );
+      const data = await fetchJson<BillingOut[]>(`/api/v1/billing?${query}`);
       setItems(data);
     } catch (e) {
-      setErr(e instanceof Error ? e.message : "Failed to load");
+      setError(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
     }
-  }
+  }, [query]);
 
   useEffect(() => {
-    void reload();
-  }, []);
+    reload();
+  }, [reload]);
 
-  function updateLine(idx: number, patch: Partial<BillingLineIn>) {
-    setLines((prev) => prev.map((x, i) => (i === idx ? { ...x, ...patch } : x)));
-  }
+  // -----------------------------
+  // Actions
+  // -----------------------------
 
-  function addLine() {
-    setLines((prev) => [...prev, { name: "明細", qty: 1, unit_price: 0 }]);
-  }
-
-  function removeLine(idx: number) {
-    setLines((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  async function createDraft() {
-    setSaving(true);
-    setSaveMsg(null);
-
+  async function createDraftInvoice() {
+    const customer = window.prompt("顧客名（任意）") ?? "";
     try {
-      const body: BillingCreateIn = {
-        kind,
-        status: "draft",
-        customer_name: customerName.trim() || undefined,
-        lines: lines
-          .map((ln) => ({
-            name: (ln.name || "").trim(),
-            qty: safeNumber(ln.qty, 0),
-            unit: ln.unit,
-            unit_price:
-              ln.unit_price == null
-                ? undefined
-                : Math.trunc(safeNumber(ln.unit_price, 0)),
-            cost_price:
-              ln.cost_price == null
-                ? undefined
-                : Math.trunc(safeNumber(ln.cost_price, 0)),
-          }))
-          .filter((ln) => ln.name.length > 0),
-        meta: { _ui: "billing-page" },
-      };
-
-      await fetchJson(`/api/v1/billing`, {
+      await fetchJson<BillingOut>("/api/v1/billing", {
         method: "POST",
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          kind: "invoice",
+          status: "draft",
+          customer_name: customer.trim() || null,
+          lines: [
+            { name: "明細", qty: 1, unit_price: 0 },
+          ],
+        }),
       });
-
-      setSaveMsg("DBへ保存しました");
-      setCustomerName("");
-      setLines([{ name: "作業費", qty: 1, unit_price: 10000 }]);
       await reload();
     } catch (e) {
-      setSaveMsg(e instanceof Error ? e.message : "Save failed");
-    } finally {
-      setSaving(false);
+      alert(e instanceof Error ? e.message : "Create failed");
     }
   }
 
+  async function createDraftEstimate() {
+    const customer = window.prompt("顧客名（任意）") ?? "";
+    try {
+      await fetchJson<BillingOut>("/api/v1/billing", {
+        method: "POST",
+        body: JSON.stringify({
+          kind: "estimate",
+          status: "draft",
+          customer_name: customer.trim() || null,
+          lines: [
+            { name: "明細", qty: 1, unit_price: 0 },
+          ],
+        }),
+      });
+      await reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Create failed");
+    }
+  }
+
+  async function issueBilling(id: string) {
+    if (!window.confirm("発行しますか？")) return;
+    try {
+      await fetchJson<BillingOut>(`/api/v1/billing/${id}/issue`, { method: "POST" });
+      await reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Issue failed");
+    }
+  }
+
+  async function convertEstimateToInvoice(id: string) {
+    if (!window.confirm("見積 → 請求書に変換しますか？")) return;
+    try {
+      await fetchJson<BillingOut>(`/api/v1/billing/${id}/convert`, { method: "POST" });
+      await reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Convert failed");
+    }
+  }
+
+  async function voidInvoice(id: string) {
+    const reason = window.prompt("取消理由（任意）") ?? "";
+    if (!window.confirm("この請求書を取消(VOID)しますか？")) return;
+
+    try {
+      await fetchJson<BillingOut>(`/api/v1/billing/${id}/void`, {
+        method: "POST",
+        body: JSON.stringify({ reason: reason.trim() || undefined }),
+      });
+      await reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Void failed");
+    }
+  }
+
+  async function deleteDraft(id: string) {
+    if (!window.confirm("削除しますか？（draftのみ推奨）")) return;
+    try {
+      await fetchJson<{ deleted: boolean }>(`/api/v1/billing/${id}`, { method: "DELETE" });
+      await reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Delete failed");
+    }
+  }
+
+  function openPdf(id: string) {
+    window.open(`${API_BASE}/api/v1/billing/${id}/export.pdf`, "_blank", "noopener,noreferrer");
+  }
+
+  function openCsv(id: string) {
+    window.open(`${API_BASE}/api/v1/billing/${id}/export.csv`, "_blank", "noopener,noreferrer");
+  }
+
+  // -----------------------------
+  // UI
+  // -----------------------------
+
   return (
     <main style={{ padding: 24 }}>
-      <h1 style={{ fontSize: 22, margin: 0 }}>見積・請求（DB）</h1>
+      <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Billing</h1>
 
-      <div
-        style={{
-          marginTop: 14,
-          padding: 12,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-        }}
-      >
-        <h2 style={{ fontSize: 16, margin: 0 }}>下書きを作成（DB）</h2>
+        <button onClick={createDraftInvoice}>+ Invoice(draft)</button>
+        <button onClick={createDraftEstimate}>+ Estimate(draft)</button>
 
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 12 }}>
-          <label>
-            顧客名：
-            <input
-              value={customerName}
-              onChange={(e) => setCustomerName(e.target.value)}
-              style={{ marginLeft: 8 }}
-              placeholder="例）山田 太郎"
-            />
-          </label>
-
-          <label>
-            種別：
-            <select
-              value={kind}
-              onChange={(e) => setKind(e.target.value as BillingKind)}
-              style={{ marginLeft: 8 }}
-            >
+        <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            kind
+            <select value={kind} onChange={(e) => { setOffset(0); setKind(e.target.value as any); }}>
+              <option value="">all</option>
               <option value="invoice">invoice</option>
               <option value="estimate">estimate</option>
             </select>
           </label>
 
-          <div style={{ marginLeft: "auto" }}>
-            合計（概算）：<strong>{formatYen(previewTotal)}</strong>
-          </div>
-        </div>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            status
+            <select value={status} onChange={(e) => { setOffset(0); setStatus(e.target.value as any); }}>
+              <option value="">all</option>
+              <option value="draft">draft</option>
+              <option value="issued">issued</option>
+              <option value="void">void</option>
+            </select>
+          </label>
 
-        <div style={{ marginTop: 12 }}>
-          <button onClick={addLine}>明細を追加</button>
-        </div>
+          <label style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            limit
+            <select value={limit} onChange={(e) => { setOffset(0); setLimit(Number(e.target.value)); }}>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+              <option value={100}>100</option>
+            </select>
+          </label>
 
-        <div style={{ marginTop: 12 }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th align="left">名称</th>
-                <th align="right">数量</th>
-                <th align="right">単価</th>
-                <th align="right">小計</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {lines.map((ln, idx) => {
-                const qty = safeNumber(ln.qty, 0);
-                const unit =
-                  ln.unit_price == null ? 0 : Math.trunc(safeNumber(ln.unit_price, 0));
-                const amount = Math.trunc(qty * unit);
-
-                return (
-                  <tr key={idx}>
-                    <td>
-                      <input
-                        value={ln.name}
-                        onChange={(e) => updateLine(idx, { name: e.target.value })}
-                        style={{ width: "100%" }}
-                      />
-                    </td>
-                    <td align="right">
-                      <input
-                        value={ln.qty}
-                        onChange={(e) => updateLine(idx, { qty: safeNumber(e.target.value, 0) })}
-                        style={{ width: 80, textAlign: "right" }}
-                      />
-                    </td>
-                    <td align="right">
-                      <input
-                        value={ln.unit_price ?? ""}
-                        onChange={(e) =>
-                          updateLine(idx, {
-                            unit_price: e.target.value === "" ? undefined : safeNumber(e.target.value, 0),
-                          })
-                        }
-                        style={{ width: 120, textAlign: "right" }}
-                      />
-                    </td>
-                    <td align="right">{formatYen(amount)}</td>
-                    <td align="right">
-                      <button onClick={() => removeLine(idx)} disabled={lines.length <= 1}>
-                        削除
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-
-        <div style={{ marginTop: 12, display: "flex", gap: 12, alignItems: "center" }}>
-          <button onClick={createDraft} disabled={saving}>
-            {saving ? "保存中..." : "下書きをDBへ保存"}
+          <button onClick={reload} disabled={loading}>
+            {loading ? "Loading..." : "Reload"}
           </button>
-          {saveMsg && <span>{saveMsg}</span>}
         </div>
       </div>
 
-      <div style={{ marginTop: 20 }}>
-        <h2 style={{ fontSize: 16 }}>最近の請求（DB）</h2>
+      {error && (
+        <pre style={{ marginTop: 16, padding: 12, background: "#fee", border: "1px solid #f99", whiteSpace: "pre-wrap" }}>
+          {error}
+        </pre>
+      )}
 
-        {loading && <p>Loading...</p>}
-        {err && <p style={{ color: "crimson" }}>読み込みエラー: {err}</p>}
-        {!loading && !err && items.length === 0 && <p>データがありません</p>}
-
-        {!loading && !err && items.length > 0 && (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                <th align="left">ID</th>
-                <th align="left">作成日</th>
-                <th align="left">顧客</th>
-                <th align="left">種別</th>
-                <th align="left">状態</th>
-                <th align="right">合計</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((d) => (
-                <tr key={d.id}>
-                  <td style={{ fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                    <Link href={`/billing/${d.id}`}>{d.id}</Link>
-                  </td>
-                  <td>{new Date(d.created_at).toLocaleString("ja-JP")}</td>
-                  <td>{d.customer_name ?? "-"}</td>
-                  <td>{d.kind}</td>
-                  <td>{d.status}</td>
-                  <td align="right">{formatYen(d.total)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+      <div style={{ marginTop: 16, display: "flex", gap: 8, alignItems: "center" }}>
+        <button
+          onClick={() => setOffset((v) => Math.max(0, v - limit))}
+          disabled={loading || offset === 0}
+        >
+          Prev
+        </button>
+        <div style={{ color: "#555" }}>
+          offset: {offset}
+        </div>
+        <button
+          onClick={() => setOffset((v) => v + limit)}
+          disabled={loading || items.length < limit}
+        >
+          Next
+        </button>
       </div>
+
+      <table style={{ width: "100%", marginTop: 12, borderCollapse: "collapse" }}>
+        <thead>
+          <tr>
+            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>No</th>
+            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Kind</th>
+            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Status</th>
+            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Customer</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #ddd", padding: 8 }}>Total</th>
+            <th style={{ textAlign: "left", borderBottom: "1px solid #ddd", padding: 8 }}>Updated</th>
+            <th style={{ textAlign: "right", borderBottom: "1px solid #ddd", padding: 8 }}>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {items.map((d) => {
+            const canIssue = d.status === "draft";
+            const canConvert = d.kind === "estimate" && d.status !== "void";
+            const canVoid = d.kind === "invoice" && d.status === "issued";
+            const canDelete = d.status !== "issued"; // issuedはAPI側でブロックされる想定
+
+            return (
+              <tr key={d.id}>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>
+                  <Link href={`/billing/${d.id}`} style={{ textDecoration: "underline" }}>
+                    {d.doc_no ?? d.id.slice(0, 8)}
+                  </Link>
+                </td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{d.kind}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{d.status}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{d.customer_name ?? "-"}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8, textAlign: "right" }}>{formatYen(d.total)}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8 }}>{formatDate(d.updated_at)}</td>
+                <td style={{ borderBottom: "1px solid #eee", padding: 8, textAlign: "right" }}>
+                  <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                    <button onClick={() => openPdf(d.id)}>PDF</button>
+                    <button onClick={() => openCsv(d.id)}>CSV</button>
+
+                    <button onClick={() => issueBilling(d.id)} disabled={!canIssue}>
+                      Issue
+                    </button>
+
+                    <button onClick={() => convertEstimateToInvoice(d.id)} disabled={!canConvert}>
+                      Convert
+                    </button>
+
+                    <button onClick={() => voidInvoice(d.id)} disabled={!canVoid}>
+                      Void
+                    </button>
+
+                    <button onClick={() => deleteDraft(d.id)} disabled={!canDelete}>
+                      Delete
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            );
+          })}
+
+          {items.length === 0 && !loading && (
+            <tr>
+              <td colSpan={7} style={{ padding: 16, color: "#666" }}>
+                No data.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
     </main>
   );
 }

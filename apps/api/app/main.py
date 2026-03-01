@@ -22,6 +22,11 @@ from app.routes.cars import router as cars_router
 from app.routes.shaken import router as shaken_router
 from app.routes.valuation import router as valuation_router
 from app.routes.billing import router as billing_router
+from app.routes.stores import router as stores_router
+from app.routes.customers import router as customers_router
+from app.routes.inventory import router as inventory_router
+from app.routes.work import router as work_router
+from app.routes.reports import router as reports_router
 
 logger = logging.getLogger(__name__)
 
@@ -159,3 +164,9 @@ app.include_router(cars_router, prefix=API_PREFIX)
 app.include_router(shaken_router, prefix=API_PREFIX)
 app.include_router(valuation_router, prefix=API_PREFIX)
 app.include_router(billing_router, prefix=API_PREFIX)
+app.include_router(stores_router, prefix=API_PREFIX)
+app.include_router(customers_router, prefix=API_PREFIX)
+app.include_router(inventory_router, prefix=API_PREFIX)  
+app.include_router(work_router, prefix=API_PREFIX)       
+app.include_router(reports_router, prefix=API_PREFIX)
+

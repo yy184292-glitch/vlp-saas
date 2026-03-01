@@ -1,176 +1,170 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
-import uuid
-import logging
+from datetime import timedelta
+from typing import Optional
+from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
-from sqlalchemy.exc import IntegrityError
+from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, hash_password, verify_password
 from app.db.session import get_db
-from app.models.store import Store
 from app.models.user import User
-from app.schemas.user import TokenResponse, UserCreate, UserLogin
+from app.models.store import StoreORM
+from app.core.security import (
+    verify_password,
+    create_access_token,
+    get_password_hash,
+)
 
-logger = logging.getLogger(__name__)
-
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(tags=["auth"])
 
 
-# =========================================================
-# Helpers
-# =========================================================
+# ============================================================
+# schemas
+# ============================================================
 
-def _ensure_default_store(db: Session) -> Store:
+class LoginIn(BaseModel):
+    email: str
+    password: str
+
+
+class LoginOut(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    user_id: UUID
+    store_id: Optional[UUID]
+
+
+class RegisterIn(BaseModel):
+    email: str
+    password: str
+    name: str
+    store_id: Optional[UUID] = None
+
+
+# ============================================================
+# internal helpers
+# ============================================================
+
+def _get_user_password_hash(user: User) -> Optional[str]:
     """
-    Ensure at least one store exists.
-    Safe against race conditions.
+    password_hash / hashed_password / password の揺れを吸収
     """
-    store = db.execute(select(Store).limit(1)).scalar_one_or_none()
+    for attr in ("password_hash", "hashed_password", "password"):
+        if hasattr(user, attr):
+            value = getattr(user, attr)
+            if isinstance(value, str) and value:
+                return value
+    return None
 
-    if store:
-        return store
 
-    store = Store(
-        id=uuid.uuid4(),
-        name="Default Store",
+def _set_user_password_hash(user: User, hashed: str) -> None:
+    """
+    存在する列に安全にセット
+    """
+    for attr in ("password_hash", "hashed_password"):
+        if hasattr(user, attr):
+            setattr(user, attr, hashed)
+            return
+
+    raise HTTPException(
+        status_code=500,
+        detail="User model has no password hash column",
     )
 
-    db.add(store)
 
-    try:
-        db.commit()
-        db.refresh(store)
-        return store
+# ============================================================
+# login
+# ============================================================
 
-    except IntegrityError:
-        db.rollback()
-        # 別プロセスで作られた可能性
-        store = db.execute(select(Store).limit(1)).scalar_one()
-        return store
+@router.post("/auth/login", response_model=LoginOut)
+def login(
+    body: LoginIn,
+    db: Session = Depends(get_db),
+) -> LoginOut:
 
+    user = db.execute(
+        select(User).where(User.email == body.email)
+    ).scalar_one_or_none()
 
-def _is_first_user(db: Session) -> bool:
-    count = db.execute(select(func.count()).select_from(User)).scalar_one()
-    return int(count) == 0
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
 
+    stored_hash = _get_user_password_hash(user)
 
-def _create_user(db: Session, email: str, password: str, store_id: uuid.UUID, role: str) -> User:
-    """
-    Create user with proper error handling.
-    """
-    user = User(
-        id=uuid.uuid4(),
-        email=email,
-        password_hash=hash_password(password),
+    if not stored_hash:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    if not verify_password(body.password, stored_hash):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+
+    # store check
+    store_id = getattr(user, "store_id", None)
+
+    if store_id:
+        store = db.get(StoreORM, store_id)
+        if not store:
+            raise HTTPException(status_code=400, detail="Store not found")
+
+    token = create_access_token(
+        subject=str(user.id),
+        expires_delta=timedelta(hours=24),
+    )
+
+    return LoginOut(
+        access_token=token,
+        user_id=user.id,
         store_id=store_id,
-        role=role,
-        is_active=True,
     )
 
-    db.add(user)
 
-    try:
-        db.commit()
-        db.refresh(user)
-        return user
+# ============================================================
+# register
+# ============================================================
 
-    except IntegrityError:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
-        ) from None
-
-    except Exception as e:
-        db.rollback()
-        logger.exception("User creation failed")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"User creation failed: {type(e).__name__}",
-        ) from None
-
-
-# =========================================================
-# Routes
-# =========================================================
-
-@router.post("/register", response_model=TokenResponse)
+@router.post("/auth/register")
 def register(
-    data: UserCreate,
+    body: RegisterIn,
     db: Session = Depends(get_db),
 ):
-    """
-    Register new user.
-    Automatically assigns to default store.
-    """
 
     existing = db.execute(
-        select(User).where(User.email == data.email)
+        select(User).where(User.email == body.email)
     ).scalar_one_or_none()
 
     if existing:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Email already registered",
+            status_code=400,
+            detail="Email already exists",
         )
 
-    store = _ensure_default_store(db)
+    if body.store_id:
+        store = db.get(StoreORM, body.store_id)
+        if not store:
+            raise HTTPException(
+                status_code=400,
+                detail="Store not found",
+            )
 
-    role = "admin" if _is_first_user(db) else "user"
+    hashed = get_password_hash(body.password)
 
-    user = _create_user(
-        db=db,
-        email=data.email,
-        password=data.password,
-        store_id=store.id,
-        role=role,
+    user = User(
+        email=body.email,
+        store_id=body.store_id,
     )
 
-    token = create_access_token(str(user.id))
+    _set_user_password_hash(user, hashed)
 
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-    )
+    # name列が存在する場合のみセット（互換対応）
+    if body.name:
+        for attr in ("name", "full_name", "username"):
+            if hasattr(user, attr):
+                setattr(user, attr, body.name)
+                break
 
+    db.add(user)
+    db.commit()
 
-@router.post("/login", response_model=TokenResponse)
-def login(
-    data: UserLogin,
-    db: Session = Depends(get_db),
-):
-    """
-    Authenticate user and return JWT token.
-    """
-
-    user = db.execute(
-        select(User).where(User.email == data.email)
-    ).scalar_one_or_none()
-
-    if not user:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-        )
-
-    if not verify_password(data.password, user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials",
-        )
-
-    if not getattr(user, "is_active", True):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Inactive user",
-        )
-
-    token = create_access_token(str(user.id))
-
-    return TokenResponse(
-        access_token=token,
-        token_type="bearer",
-    )
+    return {"created": True}
