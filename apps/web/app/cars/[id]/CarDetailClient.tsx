@@ -23,8 +23,7 @@ function parseMoneyOrNull(raw: string): number | null {
   const s = raw.replace(/,/g, "").trim();
   if (!s) return null;
   const n = Number(s);
-  if (!Number.isFinite(n)) return null;
-  if (n < 0) return null;
+  if (!Number.isFinite(n) || n < 0) return null;
   return Math.floor(n);
 }
 
@@ -119,7 +118,7 @@ export default function CarDetailClient({ carId }: { carId: string }) {
     } catch (e) {
       if (isBackendUpdateUnsupported(e)) {
         setSaveUnsupported(true);
-        setErrorMessage("保存APIがまだ未対応のため、この環境では保存できません（UIは先行実装）。");
+        setErrorMessage("保存APIが未対応のため、この環境では保存できません（API実装後に有効化されます）。");
         return;
       }
       const msg = e instanceof Error ? e.message : "保存に失敗しました";
@@ -181,10 +180,6 @@ export default function CarDetailClient({ carId }: { carId: string }) {
               <div className="mt-1 text-sm">{car.carNumber ?? "-"}</div>
               <div className="mt-2 text-sm text-neutral-500">VIN</div>
               <div className="mt-1 text-sm">{car.vin ?? "-"}</div>
-              <div className="mt-2 text-sm text-neutral-500">年式 / 走行</div>
-              <div className="mt-1 text-sm">
-                {(car.year ?? "-") + " / " + (car.mileage !== null ? `${formatYen(car.mileage)} km` : "-")}
-              </div>
             </div>
 
             <div className="rounded-xl border bg-neutral-50 p-4">
@@ -195,7 +190,6 @@ export default function CarDetailClient({ carId }: { carId: string }) {
                   className="rounded-lg bg-black px-3 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={onSave}
                   disabled={saving || !dirty || saveUnsupported}
-                  title={saveUnsupported ? "保存API未対応" : undefined}
                 >
                   {saveUnsupported ? "保存未対応" : saving ? "保存中…" : "保存"}
                 </button>
@@ -212,7 +206,6 @@ export default function CarDetailClient({ carId }: { carId: string }) {
                     onChange={(e) => setPurchasePriceText(sanitizeMoneyInput(e.target.value))}
                     placeholder="例: 1,200,000"
                   />
-                  <div className="mt-1 text-xs text-neutral-500">現在: {formatYen(car.purchasePrice)} 円</div>
                 </label>
 
                 <label className="block">
@@ -225,7 +218,6 @@ export default function CarDetailClient({ carId }: { carId: string }) {
                     onChange={(e) => setSalePriceText(sanitizeMoneyInput(e.target.value))}
                     placeholder="例: 1,450,000"
                   />
-                  <div className="mt-1 text-xs text-neutral-500">現在: {formatYen(car.salePrice)} 円</div>
                 </label>
 
                 <div className="mt-2 rounded-lg border bg-white px-3 py-2 text-sm">
@@ -240,38 +232,24 @@ export default function CarDetailClient({ carId }: { carId: string }) {
                       })()}
                     </span>
                   </div>
-                  <div className="mt-1 text-xs text-neutral-500">※ 査定（expected）とは別の「実入力値」です。</div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div className="mt-5 grid grid-cols-1 gap-3 md:grid-cols-2">
-            <div className="rounded-xl border p-4">
-              <div className="text-sm font-medium">直近査定（expected）</div>
-              <div className="mt-2 text-sm text-neutral-700">
-                仕入れ上限: {formatYen(car.expectedBuyPrice)} / 推奨売価: {formatYen(car.expectedSellPrice)}
-              </div>
-              <div className="mt-1 text-sm text-neutral-700">
-                期待利益: {formatYen(car.expectedProfit)}（{car.expectedProfitRate !== null ? `${car.expectedProfitRate}%` : "-"}）
-              </div>
-              <div className="mt-1 text-xs text-neutral-500">査定日時: {car.valuationAt ?? "-"}</div>
+          <div className="mt-5 rounded-xl border p-4">
+            <div className="text-sm font-medium">直近査定（expected）</div>
+            <div className="mt-2 text-sm text-neutral-700">
+              仕入れ上限: {formatYen(car.expectedBuyPrice)} / 推奨売価: {formatYen(car.expectedSellPrice)}
             </div>
-
-            <div className="rounded-xl border p-4">
-              <div className="text-sm font-medium">更新情報</div>
-              <div className="mt-2 text-sm text-neutral-700">作成: {car.createdAt ?? "-"}</div>
-              <div className="mt-1 text-sm text-neutral-700">更新: {car.updatedAt ?? "-"}</div>
-              <div className="mt-3 text-xs text-neutral-500">
-                保存ボタンが「保存未対応」になる場合は、バックエンド側のPATCHが未実装です。
-              </div>
+            <div className="mt-1 text-sm text-neutral-700">
+              期待利益: {formatYen(car.expectedProfit)}（{car.expectedProfitRate !== null ? `${car.expectedProfitRate}%` : "-"}）
             </div>
           </div>
         </div>
       ) : (
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
           <div className="mb-3 text-sm font-medium">査定履歴</div>
-
           {valuations.length === 0 ? (
             <div className="text-sm text-neutral-600">査定履歴はありません。</div>
           ) : (
