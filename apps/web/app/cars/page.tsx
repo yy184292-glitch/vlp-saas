@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 
-import { toCarCardVM, toneClass, type CarCardVM } from "@/app/_components/cars/cars-ui";
+import { toCarCardVM, toneClass, type CarCardVM } from "../_components/cars/cars-ui";
 
 type SortKey = "updated_desc" | "updated_asc";
 
