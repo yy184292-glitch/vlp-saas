@@ -1,11 +1,10 @@
 import CarDetailClient from "./CarDetailClient";
 
 type PageProps = {
-  params: {
-    id: string;
-  };
+  params: Promise<{ id: string }>;
 };
 
-export default function Page({ params }: PageProps) {
-  return <CarDetailClient carId={params.id} />;
+export default async function Page({ params }: PageProps) {
+  const { id } = await params;
+  return <CarDetailClient carId={id} />;
 }
