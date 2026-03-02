@@ -29,7 +29,7 @@ interface CustomerCreateForm {
   notes: string;
 }
 
-export default function CustomersPage(): JSX.Element {
+export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [createOpen, setCreateOpen] = useState<boolean>(false);
   const [createLoading, setCreateLoading] = useState<boolean>(false);
@@ -125,9 +125,7 @@ export default function CustomersPage(): JSX.Element {
               <DialogTitle>顧客追加</DialogTitle>
             </DialogHeader>
 
-            <p className="text-sm text-muted-foreground">
-              新規顧客を登録します
-            </p>
+            <p className="text-sm text-muted-foreground">新規顧客を登録します</p>
 
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
