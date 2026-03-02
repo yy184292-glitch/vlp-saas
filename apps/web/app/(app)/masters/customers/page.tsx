@@ -8,7 +8,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -124,8 +123,11 @@ export default function CustomersPage(): JSX.Element {
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>顧客追加</DialogTitle>
-              <DialogDescription>新規顧客を登録します</DialogDescription>
             </DialogHeader>
+
+            <p className="text-sm text-muted-foreground">
+              新規顧客を登録します
+            </p>
 
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
@@ -171,7 +173,6 @@ export default function CustomersPage(): JSX.Element {
                 />
               </div>
 
-              {/* Textareaが無いプロジェクトでも確実にビルドが通るようにInputで代替 */}
               <div className="grid gap-2">
                 <Label htmlFor="notes">備考</Label>
                 <Input
