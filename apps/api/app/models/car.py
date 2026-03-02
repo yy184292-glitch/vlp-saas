@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float
+from sqlalchemy import Column, String, Integer, DateTime, ForeignKey, Float, Boolean, Text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.sql import func
 import uuid
@@ -45,6 +45,15 @@ class Car(Base):
     expected_profit = Column(Integer, nullable=True)
     expected_profit_rate = Column(Float, nullable=True)
     valuation_at = Column(DateTime(timezone=True), nullable=True)
+
+    # =========================================================
+    # 海外公開（export）
+    # =========================================================
+    export_enabled = Column(Boolean, nullable=False, server_default="false")
+    export_price = Column(Integer, nullable=True)
+    export_status = Column(String, nullable=True)
+    export_image_url = Column(String, nullable=True)
+    export_description = Column(Text, nullable=True)
 
     created_at = Column(
         DateTime(timezone=True),

@@ -34,4 +34,7 @@ from app.models import master_category  # noqa: F401
 
 from app.models import store_setting  # noqa: F401
 
+# calendar
+from app.models import instruction_order  # noqa: F401
+
 from app.models import expense_source  # noqa: F401

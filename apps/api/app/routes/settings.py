@@ -29,6 +29,7 @@ class StoreSettingsOut(BaseModel):
     store_id: UUID
     tax_rate: Decimal
     auto_expense_on_stock_in: bool
+    instruction_due_days: int
 
     class Config:
         from_attributes = True
@@ -38,6 +39,7 @@ class StoreSettingsUpdateIn(BaseModel):
     store_id: Optional[UUID] = None
     tax_rate: Optional[Decimal] = Field(default=None, ge=Decimal("0"), le=Decimal("1"))
     auto_expense_on_stock_in: Optional[bool] = None
+    instruction_due_days: Optional[int] = Field(default=None, ge=0, le=365)
 
 
 def _get_or_create(db: Session, store_id: UUID) -> StoreSettingORM:
@@ -74,6 +76,8 @@ def update_store_settings(
         row.tax_rate = body.tax_rate
     if body.auto_expense_on_stock_in is not None:
         row.auto_expense_on_stock_in = body.auto_expense_on_stock_in
+    if body.instruction_due_days is not None:
+        row.instruction_due_days = int(body.instruction_due_days)
 
     db.add(row)
     db.commit()

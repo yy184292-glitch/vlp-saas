@@ -28,6 +28,8 @@ from app.routes.inventory import router as inventory_router
 from app.routes.work import router as work_router
 from app.routes.reports import router as reports_router
 from app.routes.invites import router as invites_router
+from app.routes.calendar import router as calendar_router
+from app.routes.export import router as export_router
 
 logger = logging.getLogger(__name__)
 
@@ -171,4 +173,6 @@ app.include_router(inventory_router, prefix=API_PREFIX)
 app.include_router(work_router, prefix=API_PREFIX)       
 app.include_router(reports_router, prefix=API_PREFIX)
 app.include_router(invites_router, prefix=API_PREFIX)
+app.include_router(calendar_router, prefix=API_PREFIX)
+app.include_router(export_router, prefix=API_PREFIX)
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Numeric, Boolean, Index
+from sqlalchemy import Column, DateTime, ForeignKey, Numeric, Boolean, Index, Integer
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import Base
@@ -26,6 +26,10 @@ class StoreSettingORM(Base):
 
     tax_rate = Column(Numeric(5, 4), nullable=False, server_default="0.10")
     auto_expense_on_stock_in = Column(Boolean, nullable=False, server_default="true")
+
+    # カレンダー期限計算用（日数）
+    # 期限日 = 入庫日(received_at) + instruction_due_days
+    instruction_due_days = Column(Integer, nullable=False, server_default="7")
 
     created_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, index=True)
     updated_at = Column(DateTime(timezone=True), nullable=False, default=_utcnow, onupdate=_utcnow)
