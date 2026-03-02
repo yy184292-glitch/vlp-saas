@@ -1,4 +1,4 @@
-"""calendar_export
+﻿"""calendar_export
 
 Revision ID: 5b1c0d2e3f4a
 Revises: 3c1a9c2f7b21
@@ -36,3 +36,4 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Downgrade schema."""
     op.drop_table("instruction_orders")
+

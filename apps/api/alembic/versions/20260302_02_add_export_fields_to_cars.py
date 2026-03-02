@@ -1,4 +1,4 @@
-"""add_export_fields_to_cars
+﻿"""add_export_fields_to_cars
 
 Revision ID: 6c2d1e3f4a5b
 Revises: 3c1a9c2f7b21
@@ -55,3 +55,4 @@ def downgrade() -> None:
     op.drop_column("cars", "export_status")
     op.drop_column("cars", "export_price")
     op.drop_column("cars", "export_enabled")
+
