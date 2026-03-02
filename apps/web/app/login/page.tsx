@@ -1,109 +1,245 @@
 "use client";
 
-// Prevent build-time prerender errors on platforms like Render
-export const dynamic = "force-dynamic";
-
-import { useEffect, useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken, setAccessToken, login } from "@/lib/api";
+
+import { registerOwner } from "@/src/lib/api"; // パスはあなたの構成に合わせて調整
+import { setAccessToken } from "@/src/lib/auth"; // 既存に合わせて（無ければ後述）
+
+type Mode = "login" | "signup";
+
+const PREFECTURES = [
+  "北海道","青森県","岩手県","宮城県","秋田県","山形県","福島県",
+  "茨城県","栃木県","群馬県","埼玉県","千葉県","東京都","神奈川県",
+  "新潟県","富山県","石川県","福井県","山梨県","長野県",
+  "岐阜県","静岡県","愛知県","三重県",
+  "滋賀県","京都府","大阪府","兵庫県","奈良県","和歌山県",
+  "鳥取県","島根県","岡山県","広島県","山口県",
+  "徳島県","香川県","愛媛県","高知県",
+  "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県",
+];
+
+async function login(email: string, password: string) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email, password }),
+  });
+
+  if (!res.ok) {
+    let msg = "ログインに失敗しました";
+    try {
+      const j = await res.json();
+      msg = j?.detail ?? msg;
+    } catch {}
+    throw new Error(msg);
+  }
+
+  return res.json();
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [mode, setMode] = useState<Mode>("login");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 既にログイン済みなら dashboardへ
-  useEffect(() => {
-    const token = getAccessToken();
-    if (token) router.replace("/dashboard");
-  }, [router]);
+  // login
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
 
-  async function onSubmit(e: React.FormEvent) {
+  // signup(owner + store)
+  const [ownerName, setOwnerName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerPassword, setOwnerPassword] = useState("");
+
+  const [storeName, setStoreName] = useState("");
+  const [prefecture, setPrefecture] = useState(PREFECTURES[0] ?? "東京都");
+  const [zip, setZip] = useState("");
+  const [address1, setAddress1] = useState("");
+  const [address2, setAddress2] = useState("");
+  const [phone, setPhone] = useState("");
+
+  const canSubmit = useMemo(() => {
+    if (mode === "login") return email.trim() && password.trim();
+    return (
+      ownerName.trim() &&
+      ownerEmail.trim() &&
+      ownerPassword.trim().length >= 8 &&
+      storeName.trim() &&
+      prefecture.trim()
+    );
+  }, [mode, email, password, ownerName, ownerEmail, ownerPassword, storeName, prefecture]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    if (!canSubmit) return;
+
     setBusy(true);
+    setError(null);
 
     try {
-      const lr = await login(email, password);
-
-      setAccessToken(lr.access_token);
-
-      if (!getAccessToken()) {
-        throw new Error("Token could not be saved. Please allow localStorage.");
+      if (mode === "login") {
+        const data = await login(email.trim(), password);
+        // data.access_token 前提（違うなら合わせる）
+        setAccessToken(data.access_token);
+        router.push("/dashboard");
+        return;
       }
 
-      // ★変更点：dashboardへ
-      router.replace("/dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const data = await registerOwner({
+        store: {
+          name: storeName.trim(),
+          prefecture,
+          zip: zip.trim() || undefined,
+          address1: address1.trim() || undefined,
+          address2: address2.trim() || undefined,
+          phone: phone.trim() || undefined,
+        },
+        owner: {
+          name: ownerName.trim(),
+          email: ownerEmail.trim(),
+          password: ownerPassword,
+        },
+      });
+
+      setAccessToken(data.access_token);
+      router.push("/dashboard");
+    } catch (err: any) {
+      setError(err?.message ?? "エラーが発生しました");
     } finally {
       setBusy(false);
     }
-  }
+  };
 
   return (
-    <main style={{ margin: "48px auto", padding: 16, maxWidth: 420 }}>
-      <h1 style={{ fontSize: 28, fontWeight: 700, marginBottom: 16 }}>
-        VLP System Login
-      </h1>
+    <div style={{ maxWidth: 560, margin: "40px auto", padding: 16 }}>
+      <h1 style={{ fontSize: 22, fontWeight: 700, marginBottom: 12 }}>VLP SaaS</h1>
 
-      {error && (
-        <div
+      <div style={{ display: "flex", gap: 8, marginBottom: 16 }}>
+        <button
+          type="button"
+          onClick={() => setMode("login")}
+          disabled={busy}
           style={{
-            border: "1px solid #fca5a5",
-            background: "#fee2e2",
-            padding: 12,
-            borderRadius: 8,
-            marginBottom: 12,
-            whiteSpace: "pre-wrap",
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            background: mode === "login" ? "#f3f4f6" : "white",
+            cursor: "pointer",
           }}
         >
+          ログイン
+        </button>
+        <button
+          type="button"
+          onClick={() => setMode("signup")}
+          disabled={busy}
+          style={{
+            padding: "8px 12px",
+            borderRadius: 10,
+            border: "1px solid #ddd",
+            background: mode === "signup" ? "#f3f4f6" : "white",
+            cursor: "pointer",
+          }}
+        >
+          初回登録（店舗作成）
+        </button>
+      </div>
+
+      {error && (
+        <div style={{ background: "#fee2e2", border: "1px solid #fecaca", padding: 12, borderRadius: 12, marginBottom: 12 }}>
           {error}
         </div>
       )}
 
-      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-        <label style={{ display: "grid", gap: 6 }}>
-          <span>Email</span>
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            disabled={busy}
-            autoComplete="email"
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-          />
-        </label>
+      <form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
+        {mode === "login" ? (
+          <>
+            <label>
+              メール
+              <input value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              パスワード
+              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+          </>
+        ) : (
+          <>
+            <div style={{ fontWeight: 700, marginTop: 6 }}>店舗情報</div>
+            <label>
+              店舗名（必須）
+              <input value={storeName} onChange={(e) => setStoreName(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              都道府県（必須）
+              <select value={prefecture} onChange={(e) => setPrefecture(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}>
+                {PREFECTURES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </label>
+            <label>
+              郵便番号
+              <input value={zip} onChange={(e) => setZip(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              住所1
+              <input value={address1} onChange={(e) => setAddress1(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              住所2
+              <input value={address2} onChange={(e) => setAddress2(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              電話
+              <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
 
-        <label style={{ display: "grid", gap: 6 }}>
-          <span>Password</span>
-          <input
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            disabled={busy}
-            autoComplete="current-password"
-            type="password"
-            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-          />
-        </label>
+            <div style={{ fontWeight: 700, marginTop: 6 }}>オーナー情報</div>
+            <label>
+              氏名（必須）
+              <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              メール（必須）
+              <input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+            <label>
+              パスワード（8文字以上推奨）
+              <input type="password" value={ownerPassword} onChange={(e) => setOwnerPassword(e.target.value)} disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+            </label>
+          </>
+        )}
 
         <button
           type="submit"
-          disabled={busy || !email.trim() || !password}
+          disabled={busy || !canSubmit}
           style={{
-            padding: 10,
-            borderRadius: 8,
-            border: "1px solid #111",
-            background: "#111",
-            color: "#fff",
-            cursor: busy ? "not-allowed" : "pointer",
-            fontWeight: 700,
+            marginTop: 6,
+            padding: "10px 12px",
+            borderRadius: 12,
+            border: "1px solid #111827",
+            background: "#111827",
+            color: "white",
+            cursor: "pointer",
+            opacity: busy || !canSubmit ? 0.6 : 1,
           }}
         >
-          {busy ? "Logging in..." : "Login"}
+          {busy ? "処理中..." : mode === "login" ? "ログイン" : "登録して開始"}
         </button>
       </form>
-    </main>
+    </div>
   );
 }

@@ -926,3 +926,41 @@ export async function registerWithInvite(input: { invite_code: string; email: st
     body: input,
   });
 }
+
+
+// apps/web/src/lib/api.ts (例：既存に合わせて追記)
+export type RegisterOwnerPayload = {
+  store: {
+    name: string;
+    prefecture: string; // "北海道" など
+    address1?: string;
+    address2?: string;
+    phone?: string;
+    zip?: string;
+  };
+  owner: {
+    name: string;
+    email: string;
+    password: string;
+  };
+};
+
+export async function registerOwner(payload: RegisterOwnerPayload) {
+  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/register-owner`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    let detail = "登録に失敗しました";
+    try {
+      const j = await res.json();
+      detail = j?.detail ?? detail;
+    } catch {}
+    throw new Error(detail);
+  }
+
+  return res.json();
+}

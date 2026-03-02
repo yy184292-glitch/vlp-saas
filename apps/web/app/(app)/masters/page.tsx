@@ -6,7 +6,7 @@ import * as React from "react";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
-import { ArrowRight, Boxes, Building2, Settings2, Users, Wrench } from "lucide-react";
+import { ArrowRight, Boxes, Building2, Settings2, Users, Wrench, TrendingUp } from "lucide-react";
 
 type HubItem = {
   title: string;
@@ -18,6 +18,7 @@ type HubItem = {
 const ITEMS: HubItem[] = [
   { title: "作業マスタ", description: "作業項目・カテゴリ・単価などの管理", href: "/masters/work", Icon: Wrench },
   { title: "顧客マスタ", description: "顧客情報（請求先/連絡先）の管理", href: "/masters/customers", Icon: Users },
+  { title: "査定設定", description: "平均相場API/買い上限/利益条件の設定", href: "/masters/valuation", Icon: TrendingUp },
   { title: "設定", description: "税率・自動計上などの設定", href: "/masters/settings", Icon: Settings2 },
   { title: "店舗情報", description: "店舗基本情報・請求書表記・口座情報", href: "/masters/store", Icon: Building2 },
   { title: "在庫管理", description: "部材一覧・追加・入出庫（入庫は経費自動計上）", href: "/masters/inventory", Icon: Boxes },

@@ -118,6 +118,12 @@ def update_settings(db: Session, store_id, patch: Mapping[str, Any]) -> Valuatio
 
     allowed = {
         "provider",
+        "market_zip",
+        "market_radius_miles",
+        "market_miles_band",
+        "market_car_type",
+        "market_currency",
+        "market_fx_rate",
         "display_adjust_pct",
         "buy_cap_pct",
         "recommended_from_cap_yen",
@@ -139,9 +145,16 @@ def update_settings(db: Session, store_id, patch: Mapping[str, Any]) -> Valuatio
 
 
 # ============================================================
-# External Market Provider (stub for now)
+# External Market Provider
 # ============================================================
-def _fetch_market_price_from_provider_stub(
+from app.core.settings import settings as _app_settings
+from app.services.marketcheck_client import (
+    MarketCheckError,
+    fetch_price_stats_active_search,
+)
+
+
+def _fetch_market_price_from_provider(
     *,
     provider: str,
     make: str,
@@ -149,11 +162,61 @@ def _fetch_market_price_from_provider_stub(
     grade: str,
     year: int,
     mileage: int,
+    market_zip: str,
+    market_radius_miles: int,
+    market_miles_band: int,
+    market_car_type: str,
+    market_currency: str,
+    market_fx_rate: float,
 ) -> MarketPrice:
     """
-    外部相場プロバイダ（現状スタブ）。
-    将来は provider に応じてHTTP/APIクライアントに差し替える。
+    外部相場プロバイダ。
+
+    - provider=MARKETCHECK: MarketCheck Car Search API (active listings) + stats=price
+      取得した統計（mean/median/min/max）から low/median/high を作成します。
+
+    NOTE:
+      MarketCheck の price は通常 USD 想定のため、market_fx_rate で JPY に換算します。
     """
+    prov = (provider or "").strip().upper()
+
+    if prov in {"MARKETCHECK", "MC"}:
+        # Build miles band filter if mileage is provided
+        miles_range = None
+        if mileage is not None and market_miles_band and market_miles_band > 0:
+            lo = max(0, int(mileage) - int(market_miles_band))
+            hi = max(lo, int(mileage) + int(market_miles_band))
+            miles_range = f"{lo}-{hi}"
+
+        stats = fetch_price_stats_active_search(
+            api_key=_app_settings.MARKETCHECK_API_KEY or "",
+            make=make,
+            model=model,
+            year=year,
+            zip_code=market_zip,
+            radius_miles=int(market_radius_miles),
+            car_type=(market_car_type or "used"),
+            miles_range=miles_range,
+        )
+
+        base = stats.median or stats.mean
+        if not base or base <= 0:
+            raise MarketCheckError("MarketCheck returned empty stats (price)")
+
+        low = stats.min or (base * 0.9)
+        high = stats.max or (base * 1.1)
+
+        # currency convert (e.g. USD -> JPY)
+        fx = float(market_fx_rate or 1.0)
+        if fx <= 0:
+            fx = 1.0
+
+        def conv(x: float) -> int:
+            return int(round(float(x) * fx))
+
+        return MarketPrice(low=conv(low), median=conv(base), high=conv(high))
+
+    # fallback: keep old stub behavior (safe default)
     base = 1_000_000
     return MarketPrice(low=int(base * 0.9), median=base, high=int(base * 1.1))
 
@@ -294,13 +357,19 @@ def _get_market_price_external_with_cache(
             logger.warning("Invalid cache payload. Falling back to provider fetch.", exc_info=True)
 
     try:
-        market = _fetch_market_price_from_provider_stub(
+        market = _fetch_market_price_from_provider(
             provider=provider_n,
             make=make_n,
             model=model_n,
             grade=grade_n,
             year=year,
             mileage=mileage,
+            market_zip=market_zip,
+            market_radius_miles=market_radius_miles,
+            market_miles_band=market_miles_band,
+            market_car_type=market_car_type,
+            market_currency=market_currency,
+            market_fx_rate=market_fx_rate,
         )
         payload = {
             "market_low": market.low,
@@ -365,6 +434,12 @@ def calculate_valuation(
         grade=grade,
         year=year,
         mileage=mileage,
+        market_zip=getattr(settings, "market_zip", "90210"),
+        market_radius_miles=int(getattr(settings, "market_radius_miles", 200)),
+        market_miles_band=int(getattr(settings, "market_miles_band", 10000)),
+        market_car_type=getattr(settings, "market_car_type", "used"),
+        market_currency=getattr(settings, "market_currency", "USD"),
+        market_fx_rate=float(getattr(settings, "market_fx_rate", 150)),
     )
 
     unit = max(1, _to_int_safe(getattr(settings, "round_unit_yen", 1000), default=1000))

@@ -28,6 +28,12 @@ def get_settings(
     s = get_or_create_settings(db, current_user.store_id)
     return {
         "provider": s.provider,
+        "market_zip": getattr(s, "market_zip", "90210"),
+        "market_radius_miles": int(getattr(s, "market_radius_miles", 200)),
+        "market_miles_band": int(getattr(s, "market_miles_band", 10000)),
+        "market_car_type": getattr(s, "market_car_type", "used"),
+        "market_currency": getattr(s, "market_currency", "USD"),
+        "market_fx_rate": float(getattr(s, "market_fx_rate", 150)),
         "display_adjust_pct": float(s.display_adjust_pct),
         "buy_cap_pct": float(s.buy_cap_pct),
         "recommended_from_cap_yen": int(s.recommended_from_cap_yen),
@@ -48,6 +54,12 @@ def put_settings(
     s = update_settings(db, current_user.store_id, body.model_dump())
     return {
         "provider": s.provider,
+        "market_zip": getattr(s, "market_zip", "90210"),
+        "market_radius_miles": int(getattr(s, "market_radius_miles", 200)),
+        "market_miles_band": int(getattr(s, "market_miles_band", 10000)),
+        "market_car_type": getattr(s, "market_car_type", "used"),
+        "market_currency": getattr(s, "market_currency", "USD"),
+        "market_fx_rate": float(getattr(s, "market_fx_rate", 150)),
         "display_adjust_pct": float(s.display_adjust_pct),
         "buy_cap_pct": float(s.buy_cap_pct),
         "recommended_from_cap_yen": int(s.recommended_from_cap_yen),

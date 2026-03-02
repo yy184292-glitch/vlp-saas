@@ -23,6 +23,12 @@ class ValuationResponse(BaseModel):
 
 class ValuationSettingsRead(BaseModel):
     provider: str
+    market_zip: str
+    market_radius_miles: int
+    market_miles_band: int
+    market_car_type: str
+    market_currency: str
+    market_fx_rate: float
     display_adjust_pct: float
     buy_cap_pct: float
     recommended_from_cap_yen: int
@@ -35,6 +41,12 @@ class ValuationSettingsRead(BaseModel):
 
 class ValuationSettingsUpdate(BaseModel):
     provider: str | None = None
+    market_zip: str | None = None
+    market_radius_miles: int | None = None
+    market_miles_band: int | None = None
+    market_car_type: str | None = None
+    market_currency: str | None = None
+    market_fx_rate: float | None = None
     display_adjust_pct: float | None = None
     buy_cap_pct: float | None = None
     recommended_from_cap_yen: int | None = None

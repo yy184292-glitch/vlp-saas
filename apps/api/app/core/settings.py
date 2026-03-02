@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # Environment
     ENV: str = Field(default="local", alias="ENV")
 
+    # External APIs
+    MARKETCHECK_API_KEY: str | None = Field(default=None, alias="MARKETCHECK_API_KEY")
+
     # CORS
     CORS_ALLOW_ORIGINS: str = Field(
         default="http://localhost:3000",

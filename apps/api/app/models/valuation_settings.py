@@ -19,7 +19,17 @@ class ValuationSettings(Base):
         primary_key=True,
     )
 
-    provider: Mapped[str] = mapped_column(String, nullable=False, server_default="MAT")
+    provider: Mapped[str] = mapped_column(String, nullable=False, server_default="MARKETCHECK")
+
+    # MarketCheck / external market settings (provider-specific)
+    market_zip: Mapped[str] = mapped_column(String, nullable=False, server_default="90210")
+    market_radius_miles: Mapped[int] = mapped_column(Integer, nullable=False, server_default="200")
+    # mileage band for search (± this value). Example: 10000 => "miles_range=(m-10000)-(m+10000)"
+    market_miles_band: Mapped[int] = mapped_column(Integer, nullable=False, server_default="10000")
+    # used / new / certified など
+    market_car_type: Mapped[str] = mapped_column(String, nullable=False, server_default="used")
+    market_currency: Mapped[str] = mapped_column(String, nullable=False, server_default="USD")
+    market_fx_rate: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, server_default="150")
 
     display_adjust_pct: Mapped[float] = mapped_column(Numeric(7, 4), nullable=False, server_default="0")
     buy_cap_pct: Mapped[float] = mapped_column(Numeric(7, 4), nullable=False, server_default="0.92")
