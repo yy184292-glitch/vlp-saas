@@ -12,7 +12,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 
 interface Customer {
@@ -45,7 +44,6 @@ export default function CustomersPage(): JSX.Element {
 
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-  // 顧客一覧取得
   async function fetchCustomers(): Promise<void> {
     try {
       const res = await fetch(`${API_URL}/api/v1/customers`, {
@@ -67,7 +65,6 @@ export default function CustomersPage(): JSX.Element {
     fetchCustomers();
   }, []);
 
-  // フォームリセット
   function resetCreateForm(): void {
     setCreateForm({
       customer_name: "",
@@ -77,7 +74,6 @@ export default function CustomersPage(): JSX.Element {
     });
   }
 
-  // 顧客作成
   async function handleCreateCustomer(): Promise<void> {
     if (!createForm.customer_name.trim()) {
       alert("顧客名は必須です");
@@ -89,9 +85,7 @@ export default function CustomersPage(): JSX.Element {
 
       const res = await fetch(`${API_URL}/api/v1/customers`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(createForm),
         credentials: "include",
       });
@@ -101,7 +95,6 @@ export default function CustomersPage(): JSX.Element {
       }
 
       await fetchCustomers();
-
       setCreateOpen(false);
       resetCreateForm();
     } catch (error) {
@@ -114,8 +107,6 @@ export default function CustomersPage(): JSX.Element {
 
   return (
     <div className="p-6 space-y-6">
-
-      {/* ヘッダー */}
       <div className="flex justify-between items-center">
         <h1 className="text-xl font-semibold">顧客マスタ</h1>
 
@@ -133,65 +124,67 @@ export default function CustomersPage(): JSX.Element {
           <DialogContent className="sm:max-w-[600px]">
             <DialogHeader>
               <DialogTitle>顧客追加</DialogTitle>
-              <DialogDescription>
-                新規顧客を登録します
-              </DialogDescription>
+              <DialogDescription>新規顧客を登録します</DialogDescription>
             </DialogHeader>
 
             <div className="grid gap-4 py-4">
-
-              <div>
-                <Label>顧客名</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="customer_name">顧客名</Label>
                 <Input
+                  id="customer_name"
                   value={createForm.customer_name}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setCreateForm({
-                      ...createForm,
+                    setCreateForm((prev) => ({
+                      ...prev,
                       customer_name: e.target.value,
-                    })
+                    }))
                   }
                 />
               </div>
 
-              <div>
-                <Label>メール</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="email">メール</Label>
                 <Input
+                  id="email"
+                  type="email"
                   value={createForm.email}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setCreateForm({
-                      ...createForm,
+                    setCreateForm((prev) => ({
+                      ...prev,
                       email: e.target.value,
-                    })
+                    }))
                   }
                 />
               </div>
 
-              <div>
-                <Label>電話</Label>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">電話</Label>
                 <Input
+                  id="phone"
                   value={createForm.phone}
                   onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    setCreateForm({
-                      ...createForm,
+                    setCreateForm((prev) => ({
+                      ...prev,
                       phone: e.target.value,
-                    })
+                    }))
                   }
                 />
               </div>
 
-              <div>
-                <Label>備考</Label>
-                <Textarea
+              {/* Textareaが無いプロジェクトでも確実にビルドが通るようにInputで代替 */}
+              <div className="grid gap-2">
+                <Label htmlFor="notes">備考</Label>
+                <Input
+                  id="notes"
                   value={createForm.notes}
-                  onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) =>
-                    setCreateForm({
-                      ...createForm,
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                    setCreateForm((prev) => ({
+                      ...prev,
                       notes: e.target.value,
-                    })
+                    }))
                   }
                 />
               </div>
-
             </div>
 
             <DialogFooter>
@@ -205,20 +198,15 @@ export default function CustomersPage(): JSX.Element {
                 キャンセル
               </Button>
 
-              <Button
-                onClick={handleCreateCustomer}
-                disabled={createLoading}
-              >
+              <Button onClick={handleCreateCustomer} disabled={createLoading}>
                 {createLoading ? "作成中..." : "作成"}
               </Button>
             </DialogFooter>
-
           </DialogContent>
         </Dialog>
       </div>
 
-      {/* 顧客一覧 */}
-      <div className="border rounded-lg">
+      <div className="border rounded-lg overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="border-b bg-muted">
             <tr>
@@ -243,7 +231,6 @@ export default function CustomersPage(): JSX.Element {
           </tbody>
         </table>
       </div>
-
     </div>
   );
 }
