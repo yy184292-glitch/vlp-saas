@@ -3,8 +3,8 @@
 import React, { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { registerOwner } from "@/src/lib/api"; // パスはあなたの構成に合わせて調整
-import { setAccessToken } from "@/src/lib/auth"; // 既存に合わせて（無ければ後述）
+import { registerOwner } from "@/lib/api"; // パスはあなたの構成に合わせて調整
+import { setAccessToken } from "@/lib/auth"; // 既存に合わせて（無ければ後述）
 
 type Mode = "login" | "signup";
 
