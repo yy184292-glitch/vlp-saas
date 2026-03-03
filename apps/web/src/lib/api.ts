@@ -914,3 +914,60 @@ export async function createInvite(input?: {
     },
   });
 }
+
+// ============================
+// Signup: Store + Owner
+// ============================
+
+export type RegisterOwnerPayload = {
+  store: {
+    name: string;
+    prefecture: string;
+    address1?: string;
+    address2?: string;
+    phone?: string;
+    zip?: string;
+  };
+  owner: {
+    name: string;
+    email: string;
+    password: string;
+  };
+};
+
+export async function registerOwner(payload: RegisterOwnerPayload): Promise<any> {
+  // 1) 店舗作成
+  const store = await apiFetch<any>("/api/v1/stores", {
+    method: "POST",
+    auth: false,
+    body: {
+      name: payload.store.name.trim(),
+      prefecture: payload.store.prefecture.trim(),
+      postal_code: payload.store.zip ?? null,
+      address1: payload.store.address1 ?? null,
+      address2: payload.store.address2 ?? null,
+      tel: payload.store.phone ?? null,
+    },
+  });
+
+  if (!store?.id) {
+    throw new Error("店舗作成に失敗しました");
+  }
+
+  // store_id 保存（既存ロジックに合わせる）
+  if (typeof window !== "undefined") {
+    localStorage.setItem("store_id", store.id);
+  }
+
+  // 2) オーナー登録（フラット形式）
+  return await apiFetch<any>("/api/v1/auth/register-owner", {
+    method: "POST",
+    auth: false,
+    body: {
+      email: payload.owner.email.trim(),
+      password: payload.owner.password,
+      name: payload.owner.name.trim(),
+      store_id: store.id,
+    },
+  });
+}
