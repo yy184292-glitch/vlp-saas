@@ -21,10 +21,14 @@ def get_password_hash(password: str) -> str:
     if not isinstance(password, str) or not password:
         raise ValueError("password must be a non-empty string")
 
-    # IMPORTANT: bcrypt truncates >72 bytes; do NOT truncate here.
+    # bcrypt has a 72-byte input limit (bytes, not characters).
+    # passlib/bcrypt may raise if over limit, so we align with bcrypt behavior by truncating.
     pw_bytes = password.encode("utf-8")
+
     if len(pw_bytes) > _BCRYPT_MAX_BYTES:
-        raise ValueError("password is too long (bcrypt limit is 72 bytes)")
+        pw_bytes = pw_bytes[:_BCRYPT_MAX_BYTES]
+        # best-effort decode (if truncation splits a multibyte char, drop invalid tail)
+        password = pw_bytes.decode("utf-8", errors="ignore")
 
     return pwd_context.hash(password)
 
