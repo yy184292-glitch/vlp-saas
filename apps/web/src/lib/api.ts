@@ -309,3 +309,41 @@ export async function getProfitByWork(args: {
     auth: true,
   });
 }
+
+// =====================
+// Reports: Cost By Item
+// =====================
+
+export type CostByItemRow = {
+  item_id: string;
+  item_name: string;
+  cost: number;
+  quantity?: number;
+};
+
+export type CostByItemResponse = {
+  date_from: string;
+  date_to: string;
+  rows: CostByItemRow[];
+};
+
+export async function getCostByItem(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<CostByItemResponse> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<CostByItemResponse>(
+    `/api/v1/reports/cost-by-item?${p.toString()}`,
+    {
+      method: "GET",
+      auth: true,
+    }
+  );
+}
