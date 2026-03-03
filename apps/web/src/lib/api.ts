@@ -270,3 +270,42 @@ export async function createInvite(input?: {
     },
   });
 }
+
+// =====================
+// Reports: By Work
+// =====================
+
+export type SalesMode = "exclusive" | "inclusive";
+
+export type ProfitByWorkRow = {
+  work_id: string;
+  work_name: string;
+  sales: number;
+  cost: number;
+  profit: number;
+  margin_rate: number; // 0..1（APIが返さない場合はUI側でも算出可）
+};
+
+export type ProfitByWorkResponse = {
+  date_from: string;
+  date_to: string;
+  rows: ProfitByWorkRow[];
+};
+
+export async function getProfitByWork(args: {
+  date_from: string;
+  date_to: string;
+  store_id: string;
+  sales_mode?: SalesMode;
+}): Promise<ProfitByWorkResponse> {
+  const p = new URLSearchParams();
+  p.set("date_from", args.date_from);
+  p.set("date_to", args.date_to);
+  p.set("store_id", args.store_id);
+  if (args.sales_mode) p.set("sales_mode", args.sales_mode);
+
+  return apiFetch<ProfitByWorkResponse>(`/api/v1/reports/profit-by-work?${p.toString()}`, {
+    method: "GET",
+    auth: true,
+  });
+}
