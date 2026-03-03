@@ -1,26 +1,20 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timezone
 from typing import Optional
-from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.deps.auth import get_current_user
+from app.dependencies.auth import get_current_user  # ★ users.py と揃える
 from app.models.instruction_order import InstructionOrderORM
 from app.models.car import Car
-from app.models.store_setting import StoreSettingORM
 from app.models.user import User
 from app.schemas.calendar import CalendarDayOut, CalendarEventOut, InstructionOrderOut
 
 router = APIRouter(tags=["calendar"])
-
-
-def _utc_today() -> date:
-    return datetime.now(timezone.utc).date()
 
 
 def _to_utc_dt(d: date, *, end_of_day: bool) -> datetime:
@@ -30,15 +24,13 @@ def _to_utc_dt(d: date, *, end_of_day: bool) -> datetime:
     return datetime.combine(d, time(0, 0, 0), tzinfo=timezone.utc)
 
 
-def _get_or_create_store_setting(db: Session, store_id: UUID) -> StoreSettingORM:
-    row = db.get(StoreSettingORM, store_id)
-    if row:
-        return row
-    row = StoreSettingORM(store_id=store_id)
-    db.add(row)
-    db.commit()
-    db.refresh(row)
-    return row
+def _safe_date(dt: Optional[datetime]) -> Optional[date]:
+    if dt is None:
+        return None
+    try:
+        return dt.date()
+    except Exception:
+        return None
 
 
 @router.get("/calendar/events", response_model=list[CalendarEventOut])
@@ -78,17 +70,22 @@ def list_calendar_events(
     events: list[CalendarEventOut] = []
 
     for ins, car in rows:
+        # ★NULL安全：ここで落ちると 500 になるので弾く
+        start_d = _safe_date(getattr(ins, "received_at", None))
+        end_d = _safe_date(getattr(ins, "due_at", None))
+        if start_d is None or end_d is None:
+            # データ不整合はスキップ（500にしない）
+            continue
+
         title = "指示書"
         if car is not None:
-            # 既存カラムに合わせて最小情報
-            title = f"{getattr(car, 'stock_no', '')} {getattr(car, 'make', '')} {getattr(car, 'model', '')}".strip()
+            title = f"{getattr(car, 'stock_no', '')} {getattr(car, 'make', '')} {getattr(car, 'model', '')}".strip() or "指示書"
 
-        # UI側は end を inclusive で扱いやすいので date を返す
         events.append(
             CalendarEventOut(
                 id=ins.id,
-                start=ins.received_at.date(),
-                end=ins.due_at.date(),
+                start=start_d,
+                end=end_d,
                 due_at=ins.due_at,
                 status=ins.status,
                 title=title,
@@ -126,7 +123,12 @@ def get_calendar_day(
 
     rows = db.execute(stmt).all()
     items: list[InstructionOrderOut] = []
+
     for ins, car in rows:
+        # ★NULL安全（念のため）
+        if getattr(ins, "received_at", None) is None or getattr(ins, "due_at", None) is None:
+            continue
+
         car_stock_no = getattr(car, "stock_no", None) if car is not None else None
         car_title = None
         if car is not None:
