@@ -42,6 +42,23 @@ type Store = {
   updated_at: string;
 };
 
+type StoreUpdatePayload = {
+  name?: string | null;
+  postal_code?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  tel?: string | null;
+  email?: string | null;
+
+  invoice_number?: string | null;
+
+  bank_name?: string | null;
+  bank_branch?: string | null;
+  bank_account_type?: string | null;
+  bank_account_number?: string | null;
+  bank_account_holder?: string | null;
+};
+
 export default function StoreInfoPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -71,11 +88,27 @@ export default function StoreInfoPage() {
     if (!store) return;
     setLoading(true);
     setError(null);
+
+    const payload: StoreUpdatePayload = {
+      name: store.name ?? null,
+      postal_code: store.postal_code ?? null,
+      address1: store.address1 ?? null,
+      address2: store.address2 ?? null,
+      tel: store.tel ?? null,
+      email: store.email ?? null,
+      invoice_number: store.invoice_number ?? null,
+
+      bank_name: store.bank_name ?? null,
+      bank_branch: store.bank_branch ?? null,
+      bank_account_type: store.bank_account_type ?? null,
+      bank_account_number: store.bank_account_number ?? null,
+      bank_account_holder: store.bank_account_holder ?? null,
+    };
+
     try {
       const s = await apiFetch<Store>(`/api/v1/stores/${store.id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(store),
+        body: payload, // ★ apiFetch が JSON 化するので string にしない
       });
       setStore(s);
     } catch (e) {
@@ -116,26 +149,58 @@ export default function StoreInfoPage() {
 
           <div className="grid gap-2 sm:col-span-2">
             <Label>店舗名</Label>
-            <Input value={store?.name ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, name: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.name ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, name: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
 
           <div className="grid gap-2">
             <Label>電話</Label>
-            <Input value={store?.tel ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, tel: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.tel ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, tel: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
           <div className="grid gap-2">
             <Label>メール</Label>
-            <Input value={store?.email ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, email: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.email ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, email: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
 
           <div className="grid gap-2">
             <Label>郵便番号</Label>
-            <Input value={store?.postal_code ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, postal_code: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.postal_code ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, postal_code: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label>住所</Label>
-            <Input value={store?.address1 ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, address1: e.target.value } : p))} className="bg-white" placeholder="住所1" />
-            <Input value={store?.address2 ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, address2: e.target.value } : p))} className="bg-white" placeholder="住所2" />
+            <Input
+              value={store?.address1 ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, address1: e.target.value } : p))}
+              className="bg-white"
+              placeholder="住所1"
+              disabled={loading}
+            />
+            <Input
+              value={store?.address2 ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, address2: e.target.value } : p))}
+              className="bg-white"
+              placeholder="住所2"
+              disabled={loading}
+            />
           </div>
 
           <div className="grid gap-2 sm:col-span-2">
@@ -145,6 +210,7 @@ export default function StoreInfoPage() {
               onChange={(e) => setStore((p) => (p ? { ...p, invoice_number: e.target.value } : p))}
               className="bg-white"
               placeholder="T1234567890123"
+              disabled={loading}
             />
           </div>
         </CardContent>
@@ -158,27 +224,56 @@ export default function StoreInfoPage() {
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="grid gap-2">
             <Label>銀行名</Label>
-            <Input value={store?.bank_name ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, bank_name: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.bank_name ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, bank_name: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
           <div className="grid gap-2">
             <Label>支店名</Label>
-            <Input value={store?.bank_branch ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, bank_branch: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.bank_branch ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, bank_branch: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
           <div className="grid gap-2">
             <Label>口座種別</Label>
-            <Input value={store?.bank_account_type ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, bank_account_type: e.target.value } : p))} className="bg-white" placeholder="普通/当座など" />
+            <Input
+              value={store?.bank_account_type ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, bank_account_type: e.target.value } : p))}
+              className="bg-white"
+              placeholder="普通/当座など"
+              disabled={loading}
+            />
           </div>
           <div className="grid gap-2">
             <Label>口座番号</Label>
-            <Input value={store?.bank_account_number ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, bank_account_number: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.bank_account_number ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, bank_account_number: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
           <div className="grid gap-2 sm:col-span-2">
             <Label>口座名義</Label>
-            <Input value={store?.bank_account_holder ?? ""} onChange={(e) => setStore((p) => (p ? { ...p, bank_account_holder: e.target.value } : p))} className="bg-white" />
+            <Input
+              value={store?.bank_account_holder ?? ""}
+              onChange={(e) => setStore((p) => (p ? { ...p, bank_account_holder: e.target.value } : p))}
+              className="bg-white"
+              disabled={loading}
+            />
           </div>
 
           <div className="sm:col-span-2 rounded-xl border bg-white p-4">
-            <div className="text-sm text-muted-foreground">プラン: <span className="font-medium text-foreground">{store?.plan_code ?? ""}</span> / 席数上限: <span className="font-medium text-foreground">{store?.seat_limit ?? ""}</span></div>
+            <div className="text-sm text-muted-foreground">
+              プラン: <span className="font-medium text-foreground">{store?.plan_code ?? ""}</span> / 席数上限:{" "}
+              <span className="font-medium text-foreground">{store?.seat_limit ?? ""}</span>
+            </div>
           </div>
         </CardContent>
       </Card>
