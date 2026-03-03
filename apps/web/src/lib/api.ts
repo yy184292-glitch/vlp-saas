@@ -971,3 +971,25 @@ export async function registerOwner(payload: RegisterOwnerPayload): Promise<any>
     },
   });
 }
+
+// ============================
+// Invite Registration
+// ============================
+
+export async function registerWithInvite(input: {
+  invite_code: string;
+  email: string;
+  password: string;
+  name: string;
+}): Promise<any> {
+  return await apiFetch<any>("/api/v1/auth/register-invite", {
+    method: "POST",
+    auth: false,
+    body: {
+      invite_code: input.invite_code,
+      email: input.email.trim(),
+      password: input.password,
+      name: input.name.trim(),
+    },
+  });
+}
