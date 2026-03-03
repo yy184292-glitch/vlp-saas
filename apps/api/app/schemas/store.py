@@ -60,5 +60,8 @@ class StoreOut(StoreBase):
     plan_code: str
     seat_limit: int
 
+    # optional store logo
+    logo_url: Optional[str] = None
+
     class Config:
         from_attributes = True

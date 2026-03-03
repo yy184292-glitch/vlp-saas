@@ -19,6 +19,27 @@ type StoreSettings = {
   auto_expense_on_stock_in: boolean;
 };
 
+type Store = {
+  id: string;
+  name: string;
+  logo_url?: string | null;
+};
+
+function getApiBaseUrl(): string {
+  const base =
+    process.env.NEXT_PUBLIC_API_BASE_URL ??
+    process.env.NEXT_PUBLIC_API_URL ??
+    process.env.NEXT_PUBLIC_API_ORIGIN ??
+    "";
+  return base.replace(/\/+$/, "");
+}
+
+function buildUrl(path: string): string {
+  const base = getApiBaseUrl();
+  if (!base) return path.startsWith("/") ? path : `/${path}`;
+  return `${base}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
 function toPercentText(rate: string) {
   const n = Number(rate);
   if (Number.isFinite(n)) return `${Math.round(n * 10000) / 100}%`;
@@ -29,6 +50,10 @@ export default function SettingsPage() {
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [settings, setSettings] = React.useState<StoreSettings | null>(null);
+
+  const [store, setStore] = React.useState<Store | null>(null);
+  const [logoUploading, setLogoUploading] = React.useState(false);
+  const [logoError, setLogoError] = React.useState<string | null>(null);
 
   const [taxRate, setTaxRate] = React.useState("0.10");
   const [autoExpense, setAutoExpense] = React.useState(true);
@@ -41,6 +66,10 @@ export default function SettingsPage() {
       setSettings(s);
       setTaxRate(String(s.tax_rate ?? "0.10"));
       setAutoExpense(!!s.auto_expense_on_stock_in);
+
+      // 店舗情報（ロゴURLなど）
+      const st = await apiFetch<Store>(`/api/v1/stores/${s.store_id}`);
+      setStore(st);
     } catch (e) {
       const ae = e as ApiError;
       setError(ae.message ?? "読み込みに失敗しました");
@@ -69,6 +98,9 @@ export default function SettingsPage() {
         body: JSON.stringify(payload),
       });
       setSettings(s);
+
+      const st = await apiFetch<Store>(`/api/v1/stores/${s.store_id}`);
+      setStore(st);
     } catch (e) {
       const ae = e as ApiError;
       setError(ae.message ?? "保存に失敗しました");
@@ -76,6 +108,38 @@ export default function SettingsPage() {
       setLoading(false);
     }
   }, [settings, taxRate, autoExpense]);
+
+  const uploadLogo = React.useCallback(
+    async (file: File) => {
+      if (!settings) return;
+      setLogoUploading(true);
+      setLogoError(null);
+      try {
+        const form = new FormData();
+        form.append("file", file);
+
+        // apiFetch は JSON 前提なので、FormData は fetch で送る
+        const token = typeof window !== "undefined" ? window.localStorage.getItem("access_token") : null;
+        const res = await fetch(buildUrl(`/api/v1/stores/${settings.store_id}/logo`), {
+          method: "POST",
+          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          body: form,
+        });
+
+        if (!res.ok) {
+          const msg = await res.text();
+          throw new Error(msg || `HTTP ${res.status}`);
+        }
+        const st = (await res.json()) as Store;
+        setStore(st);
+      } catch (e) {
+        setLogoError(e instanceof Error ? e.message : "ロゴのアップロードに失敗しました");
+      } finally {
+        setLogoUploading(false);
+      }
+    },
+    [settings]
+  );
 
   return (
     <div className="space-y-6">
@@ -114,6 +178,50 @@ export default function SettingsPage() {
               />
               <div className="text-sm text-muted-foreground">現在: {toPercentText(taxRate)}</div>
             </div>
+          </div>
+
+          <div className="rounded-2xl border bg-white p-4">
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div className="space-y-1">
+                <div className="font-medium">店舗ロゴ</div>
+                <div className="text-sm text-muted-foreground">
+                  見積・請求書に表示できます（推奨: 透過PNG / 横長）。
+                </div>
+              </div>
+              <label className="inline-flex items-center gap-2">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void uploadLogo(f);
+                    e.currentTarget.value = "";
+                  }}
+                />
+                <Button variant="outline" disabled={!settings || logoUploading} className="bg-white/70 hover:bg-white">
+                  {logoUploading ? "アップロード中…" : "ロゴをアップロード"}
+                </Button>
+              </label>
+            </div>
+
+            {logoError ? <div className="mt-3 text-sm text-destructive">{logoError}</div> : null}
+
+            {store?.logo_url ? (
+              <div className="mt-4 flex items-center gap-4">
+                <div className="rounded-xl border bg-white p-2 shadow-sm">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={buildUrl(store.logo_url)}
+                    alt="store logo"
+                    className="h-12 w-auto max-w-[240px] object-contain"
+                  />
+                </div>
+                <div className="text-sm text-muted-foreground">現在のロゴ</div>
+              </div>
+            ) : (
+              <div className="mt-3 text-sm text-muted-foreground">未設定</div>
+            )}
           </div>
 
           <div className="flex items-center justify-between gap-4 rounded-xl border bg-white p-4">

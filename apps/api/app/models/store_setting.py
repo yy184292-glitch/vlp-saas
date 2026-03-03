@@ -3,7 +3,8 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, Numeric, Boolean, Index, Integer
+from sqlalchemy import Column, DateTime, ForeignKey, Numeric, Boolean, Index, Integer, String
+
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import Base
@@ -37,3 +38,11 @@ class StoreSettingORM(Base):
     __table_args__ = (
         Index("ix_store_settings_store_id", "store_id"),
     )
+
+    # 見積/請求の支払期限（店舗デフォルト）
+    # type:
+    #  - "days": issued_at + invoice_due_days
+    #  - "eom": end_of_month(issued_at + invoice_due_months months)
+    invoice_due_rule_type = Column(String(10), nullable=False, server_default="days")
+    invoice_due_days = Column(Integer, nullable=False, server_default="30")
+    invoice_due_months = Column(Integer, nullable=False, server_default="0")

@@ -17,6 +17,55 @@ from app.models.user import User
 router = APIRouter(tags=["masters"])
 
 
+DEFAULT_EXPENSE_CATEGORIES = [
+    "仕入れ（部材）",
+    "外注費",
+    "消耗品",
+    "工具・設備",
+    "燃料費",
+    "通信費",
+    "広告宣伝",
+    "水道光熱",
+    "交通費",
+    "その他",
+]
+
+DEFAULT_WORK_CATEGORIES = [
+    "オイル交換",
+    "タイヤ交換",
+    "車検整備",
+    "点検",
+    "バッテリー交換",
+    "ブレーキ整備",
+    "エアコン",
+    "洗車",
+    "板金・塗装",
+    "その他",
+]
+
+
+def _seed_if_empty(db: Session, sid: UUID) -> None:
+    # 最初の店舗でマスタが空だとUIが使いづらいので、最小限のプリセットを投入。
+    has_expense = db.execute(
+        select(ExpenseCategoryORM.id).where(ExpenseCategoryORM.store_id == sid).limit(1)
+    ).first()
+    has_work = db.execute(
+        select(WorkCategoryORM.id).where(WorkCategoryORM.store_id == sid).limit(1)
+    ).first()
+
+    changed = False
+    if not has_expense:
+        for name in DEFAULT_EXPENSE_CATEGORIES:
+            db.add(ExpenseCategoryORM(store_id=sid, name=name, is_system=True, usage_count=0))
+        changed = True
+    if not has_work:
+        for name in DEFAULT_WORK_CATEGORIES:
+            db.add(WorkCategoryORM(store_id=sid, name=name, is_system=True, usage_count=0))
+        changed = True
+    if changed:
+        db.commit()
+
+
 def _resolve_store_id(user: User, store_id: Optional[UUID]) -> UUID:
     if getattr(user, "store_id", None):
         return user.store_id
@@ -58,6 +107,7 @@ def list_expense_categories(
     user: User = Depends(get_current_user),
 ) -> List[CategoryOut]:
     sid = _resolve_store_id(user, store_id)
+    _seed_if_empty(db, sid)
     stmt = select(ExpenseCategoryORM).where(ExpenseCategoryORM.store_id == sid)
     if q:
         stmt = stmt.where(ExpenseCategoryORM.name.ilike(f"%{q}%"))
@@ -107,6 +157,7 @@ def list_work_categories(
     user: User = Depends(get_current_user),
 ) -> List[CategoryOut]:
     sid = _resolve_store_id(user, store_id)
+    _seed_if_empty(db, sid)
     stmt = select(WorkCategoryORM).where(WorkCategoryORM.store_id == sid)
     if q:
         stmt = stmt.where(WorkCategoryORM.name.ilike(f"%{q}%"))

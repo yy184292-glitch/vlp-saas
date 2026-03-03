@@ -1,18 +1,52 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import List, Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.asset import AssetORM
 from app.models.store import StoreORM
 from app.schemas.store import StoreCreateIn, StoreOut, StoreUpdateIn
 
 router = APIRouter(tags=["stores"])
+
+
+def _uploads_root() -> Path:
+    # api/ 配下に uploads を作る（既存の expenses 添付と同じ方針）
+    api_root = Path(__file__).resolve().parents[3]
+    return api_root / "uploads"
+
+
+def _logo_url(store_id: UUID) -> str:
+    return f"/api/v1/stores/{store_id}/logo"
+
+
+def _attach_logo_url(db: Session, row: StoreORM) -> StoreOut:
+    # StoreOut を返す直前にロゴの有無を確認して URL を埋める
+    logo = (
+        db.execute(
+            select(AssetORM)
+            .where(AssetORM.store_id == row.id, AssetORM.kind == "logo")
+            .order_by(AssetORM.created_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+
+    out = StoreOut.model_validate(row)
+    if logo:
+        out.logo_url = _logo_url(row.id)
+    return out
 
 
 def _utcnow() -> datetime:
@@ -51,7 +85,8 @@ def list_stores(
     if actor_store_id is not None:
         stmt = stmt.where(StoreORM.id == actor_store_id)
 
-    return db.execute(stmt).scalars().all()
+    rows = db.execute(stmt).scalars().all()
+    return [_attach_logo_url(db, r) for r in rows]
 
 
 @router.get("/stores/{store_id}", response_model=StoreOut)
@@ -68,7 +103,7 @@ def get_store(
     if actor_store_id is not None and actor_store_id != store_id:
         raise HTTPException(status_code=404, detail="Not found")
 
-    return row
+    return _attach_logo_url(db, row)
 
 
 @router.post("/stores", response_model=StoreOut)
@@ -97,7 +132,7 @@ def create_store(
     db.add(row)
     db.commit()
     db.refresh(row)
-    return row
+    return _attach_logo_url(db, row)
 
 
 @router.put("/stores/{store_id}", response_model=StoreOut)
@@ -122,4 +157,98 @@ def update_store(
     row.updated_at = _utcnow()
     db.commit()
     db.refresh(row)
-    return row
+    return _attach_logo_url(db, row)
+
+
+@router.post("/stores/{store_id}/logo", response_model=StoreOut)
+async def upload_store_logo(
+    request: Request,
+    store_id: UUID,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> StoreOut:
+    row = db.get(StoreORM, store_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    actor_store_id = _get_actor_store_id(request)
+    if actor_store_id is not None and actor_store_id != store_id:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if not file:
+        raise HTTPException(status_code=400, detail="file required")
+
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="File too large (max 5MB)")
+
+    content_type = (file.content_type or "").lower()
+    if not (content_type.startswith("image/")):
+        raise HTTPException(status_code=400, detail="logo must be an image")
+
+    base_dir = _uploads_root() / "assets" / str(store_id) / "logo"
+    base_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(file.filename or "logo.png")[1].lower() or ".png"
+    save_path = base_dir / f"{uuid4()}{ext}"
+    save_path.write_bytes(content)
+
+    # 既存ロゴを消して最新のみ残す（DBとファイルの整合は最小限）
+    old = db.execute(select(AssetORM).where(AssetORM.store_id == store_id, AssetORM.kind == "logo")).scalars().all()
+    for o in old:
+        try:
+            p = Path(o.file_path)
+            if p.exists():
+                p.unlink()
+        except Exception:
+            pass
+        db.delete(o)
+
+    asset = AssetORM(
+        store_id=store_id,
+        kind="logo",
+        content_type=content_type,
+        file_path=str(save_path),
+    )
+    db.add(asset)
+    db.commit()
+
+    return _attach_logo_url(db, row)
+
+
+@router.get("/stores/{store_id}/logo")
+def download_store_logo(
+    request: Request,
+    store_id: UUID,
+    db: Session = Depends(get_db),
+):
+    row = db.get(StoreORM, store_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    actor_store_id = _get_actor_store_id(request)
+    if actor_store_id is not None and actor_store_id != store_id:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    logo = (
+        db.execute(
+            select(AssetORM)
+            .where(AssetORM.store_id == store_id, AssetORM.kind == "logo")
+            .order_by(AssetORM.created_at.desc())
+            .limit(1)
+        )
+        .scalars()
+        .first()
+    )
+    if not logo:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    path = Path(logo.file_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="File not found on server")
+
+    return FileResponse(
+        path=str(path),
+        media_type=logo.content_type or "application/octet-stream",
+        filename=os.path.basename(logo.file_path) or "logo",
+    )

@@ -31,6 +31,10 @@ class StoreSettingsOut(BaseModel):
     auto_expense_on_stock_in: bool
     instruction_due_days: int
 
+    invoice_due_rule_type: str
+    invoice_due_days: int
+    invoice_due_months: int
+
     class Config:
         from_attributes = True
 
@@ -41,6 +45,9 @@ class StoreSettingsUpdateIn(BaseModel):
     auto_expense_on_stock_in: Optional[bool] = None
     instruction_due_days: Optional[int] = Field(default=None, ge=0, le=365)
 
+    invoice_due_months: Optional[int] = Field(default=None, ge=0, le=120)
+    invoice_due_rule_type: Optional[str] = None  # "days" | "eom"
+    invoice_due_days: Optional[int] = Field(default=None, ge=0, le=3650)
 
 def _get_or_create(db: Session, store_id: UUID) -> StoreSettingORM:
     row = db.get(StoreSettingORM, store_id)
@@ -78,6 +85,14 @@ def update_store_settings(
         row.auto_expense_on_stock_in = body.auto_expense_on_stock_in
     if body.instruction_due_days is not None:
         row.instruction_due_days = int(body.instruction_due_days)
+
+
+    if body.invoice_due_rule_type is not None:
+        row.invoice_due_rule_type = body.invoice_due_rule_type
+    if body.invoice_due_days is not None:
+        row.invoice_due_days = int(body.invoice_due_days)
+    if body.invoice_due_months is not None:
+        row.invoice_due_months = int(body.invoice_due_months)
 
     db.add(row)
     db.commit()
