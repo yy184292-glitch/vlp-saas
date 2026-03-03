@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+export const dynamic = "force-dynamic";
+
+import React, { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { registerOwner } from "@/lib/api"; // パスはあなたの構成に合わせて調整
-import { setAccessToken } from "@/lib/auth"; // 既存に合わせて（無ければ後述）
+import { login, registerOwner, setAccessToken, getAccessToken } from "@/lib/api";
 
 type Mode = "login" | "signup";
 
@@ -18,26 +19,6 @@ const PREFECTURES = [
   "徳島県","香川県","愛媛県","高知県",
   "福岡県","佐賀県","長崎県","熊本県","大分県","宮崎県","鹿児島県","沖縄県",
 ];
-
-async function login(email: string, password: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/login`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ email, password }),
-  });
-
-  if (!res.ok) {
-    let msg = "ログインに失敗しました";
-    try {
-      const j = await res.json();
-      msg = j?.detail ?? msg;
-    } catch {}
-    throw new Error(msg);
-  }
-
-  return res.json();
-}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -61,6 +42,11 @@ export default function LoginPage() {
   const [address2, setAddress2] = useState("");
   const [phone, setPhone] = useState("");
 
+  useEffect(() => {
+    const token = getAccessToken();
+    if (token) router.replace("/dashboard");
+  }, [router]);
+
   const canSubmit = useMemo(() => {
     if (mode === "login") return email.trim() && password.trim();
     return (
@@ -74,7 +60,7 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmit) return;
+    if (!canSubmit || busy) return;
 
     setBusy(true);
     setError(null);
@@ -82,9 +68,8 @@ export default function LoginPage() {
     try {
       if (mode === "login") {
         const data = await login(email.trim(), password);
-        // data.access_token 前提（違うなら合わせる）
         setAccessToken(data.access_token);
-        router.push("/dashboard");
+        router.replace("/dashboard");
         return;
       }
 
@@ -104,8 +89,20 @@ export default function LoginPage() {
         },
       });
 
-      setAccessToken(data.access_token);
-      router.push("/dashboard");
+      // registerOwner が token を返す場合はそれを保存
+      const accessToken =
+        data && typeof data === "object" && "access_token" in (data as any) ? String((data as any).access_token || "") : "";
+
+      if (accessToken) {
+        setAccessToken(accessToken);
+        router.replace("/dashboard");
+        return;
+      }
+
+      // token を返さないAPIでも動くように、直後にログインして token を取得して保存
+      const loggedIn = await login(ownerEmail.trim(), ownerPassword);
+      setAccessToken(loggedIn.access_token);
+      router.replace("/dashboard");
     } catch (err: any) {
       setError(err?.message ?? "エラーが発生しました");
     } finally {
@@ -159,13 +156,24 @@ export default function LoginPage() {
           <>
             <label>
               メール
-              <input value={email} onChange={(e) => setEmail(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={busy}
+                autoComplete="email"
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               パスワード
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={busy}
+                autoComplete="current-password"
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
           </>
         ) : (
@@ -173,52 +181,95 @@ export default function LoginPage() {
             <div style={{ fontWeight: 700, marginTop: 6 }}>店舗情報</div>
             <label>
               店舗名（必須）
-              <input value={storeName} onChange={(e) => setStoreName(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={storeName}
+                onChange={(e) => setStoreName(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               都道府県（必須）
-              <select value={prefecture} onChange={(e) => setPrefecture(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}>
-                {PREFECTURES.map((p) => <option key={p} value={p}>{p}</option>)}
+              <select
+                value={prefecture}
+                onChange={(e) => setPrefecture(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              >
+                {PREFECTURES.map((p) => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
               </select>
             </label>
             <label>
               郵便番号
-              <input value={zip} onChange={(e) => setZip(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={zip}
+                onChange={(e) => setZip(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               住所1
-              <input value={address1} onChange={(e) => setAddress1(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={address1}
+                onChange={(e) => setAddress1(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               住所2
-              <input value={address2} onChange={(e) => setAddress2(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={address2}
+                onChange={(e) => setAddress2(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               電話
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
 
             <div style={{ fontWeight: 700, marginTop: 6 }}>オーナー情報</div>
             <label>
               氏名（必須）
-              <input value={ownerName} onChange={(e) => setOwnerName(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+                disabled={busy}
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               メール（必須）
-              <input value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                value={ownerEmail}
+                onChange={(e) => setOwnerEmail(e.target.value)}
+                disabled={busy}
+                autoComplete="email"
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
             <label>
               パスワード（8文字以上推奨）
-              <input type="password" value={ownerPassword} onChange={(e) => setOwnerPassword(e.target.value)} disabled={busy}
-                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }} />
+              <input
+                type="password"
+                value={ownerPassword}
+                onChange={(e) => setOwnerPassword(e.target.value)}
+                disabled={busy}
+                autoComplete="new-password"
+                style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #ddd" }}
+              />
             </label>
           </>
         )}
