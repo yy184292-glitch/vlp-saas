@@ -17,47 +17,43 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _BCRYPT_MAX_BYTES = 72
 
 
-def _truncate_to_bcrypt_limit(password: str) -> str:
+def _to_bcrypt_secret(password: str) -> bytes:
     """
-    bcryptの仕様に合わせて「72バイト」に揃える。
-    - 72バイト超はbcrypt内部的に切り捨てられる（実装/ライブラリによっては例外）。
-    - 運用上は、例外で落とすより「揃えて処理を継続」する方が事故が少ない。
+    bcrypt仕様に合わせて「72バイト以下のbytes」を必ず返す。
+    passlib 側の "truncate manually" 系エラーを確実に回避するため、
+    hash/verify ともに bytes を渡す運用に寄せる。
     """
     if not isinstance(password, str):
         raise ValueError("password must be a string")
+    if not password:
+        raise ValueError("password must be a non-empty string")
 
     pw_bytes = password.encode("utf-8")
     if len(pw_bytes) <= _BCRYPT_MAX_BYTES:
-        return password
-
-    pw_bytes = pw_bytes[:_BCRYPT_MAX_BYTES]
-    # マルチバイト文字の途中で切れた場合は末尾を捨てて復元
-    return pw_bytes.decode("utf-8", errors="ignore")
+        return pw_bytes
+    return pw_bytes[:_BCRYPT_MAX_BYTES]
 
 
 def get_password_hash(password: str) -> str:
-    if not isinstance(password, str) or not password:
-        raise ValueError("password must be a non-empty string")
+    secret = _to_bcrypt_secret(password)
 
-    pw = _truncate_to_bcrypt_limit(password)
-
-    # passlib/bcrypt は入力が長いと例外を投げる場合があるので、
-    # メッセージを見て安全に再試行する（運用で落とさない）
+    # passlib/bcrypt の実装差で例外になるのを避けるため、
+    # ここでは「常に 72 bytes 以下の bytes」を渡す。
     try:
-        return pwd_context.hash(pw)
+        return pwd_context.hash(secret)
     except Exception as e:
-        msg = str(e).lower()
-        if "72 bytes" in msg or "longer than 72" in msg:
-            pw2 = _truncate_to_bcrypt_limit(pw)
-            return pwd_context.hash(pw2)
-        raise
+        # もしバックエンド差異でここに来ても、secret は <=72 なので再試行しても同じ。
+        # 原因特定しやすいよう、そのまま投げる。
+        raise e
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     if not plain_password or not hashed_password:
         return False
+
     try:
-        return pwd_context.verify(plain_password, hashed_password)
+        secret = _to_bcrypt_secret(plain_password)
+        return pwd_context.verify(secret, hashed_password)
     except Exception:
         return False
 
@@ -71,7 +67,6 @@ def _get_secret_key() -> str:
     本番は環境変数 SECRET_KEY を必須にしたいが、
     まずローカルで動かすためにフォールバックを用意。
     """
-    # settings があるなら優先して読む（無ければ env）
     try:
         from app.core.settings import settings  # type: ignore
         key = getattr(settings, "SECRET_KEY", None)
