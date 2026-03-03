@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Optional
+from typing import Optional, Any
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -23,6 +23,29 @@ def _unauthorized(detail: str = "Could not validate credentials") -> HTTPExcepti
     )
 
 
+def _extract_sub(decoded: Any) -> Optional[str]:
+    """
+    decode_access_token の返り値が
+    - "sub" 文字列
+    - {"sub": "..."} を含む dict
+    のどちらでも sub を取り出す。
+    """
+    if decoded is None:
+        return None
+
+    if isinstance(decoded, str):
+        return decoded.strip() or None
+
+    if isinstance(decoded, dict):
+        sub = decoded.get("sub")
+        if isinstance(sub, str):
+            return sub.strip() or None
+        return None
+
+    # 想定外型
+    return None
+
+
 def get_current_user(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
     db: Session = Depends(get_db),
@@ -36,7 +59,8 @@ def get_current_user(
     if creds is None or not creds.credentials:
         raise _unauthorized("Not authenticated")
 
-    sub = decode_access_token(creds.credentials)
+    decoded = decode_access_token(creds.credentials)
+    sub = _extract_sub(decoded)
     if not sub:
         raise _unauthorized()
 
