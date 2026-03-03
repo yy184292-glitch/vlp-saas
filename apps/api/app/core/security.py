@@ -17,20 +17,40 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 _BCRYPT_MAX_BYTES = 72
 
 
+def _truncate_to_bcrypt_limit(password: str) -> str:
+    """
+    bcryptの仕様に合わせて「72バイト」に揃える。
+    - 72バイト超はbcrypt内部的に切り捨てられる（実装/ライブラリによっては例外）。
+    - 運用上は、例外で落とすより「揃えて処理を継続」する方が事故が少ない。
+    """
+    if not isinstance(password, str):
+        raise ValueError("password must be a string")
+
+    pw_bytes = password.encode("utf-8")
+    if len(pw_bytes) <= _BCRYPT_MAX_BYTES:
+        return password
+
+    pw_bytes = pw_bytes[:_BCRYPT_MAX_BYTES]
+    # マルチバイト文字の途中で切れた場合は末尾を捨てて復元
+    return pw_bytes.decode("utf-8", errors="ignore")
+
+
 def get_password_hash(password: str) -> str:
     if not isinstance(password, str) or not password:
         raise ValueError("password must be a non-empty string")
 
-    # bcrypt has a 72-byte input limit (bytes, not characters).
-    # passlib/bcrypt may raise if over limit, so we align with bcrypt behavior by truncating.
-    pw_bytes = password.encode("utf-8")
+    pw = _truncate_to_bcrypt_limit(password)
 
-    if len(pw_bytes) > _BCRYPT_MAX_BYTES:
-        pw_bytes = pw_bytes[:_BCRYPT_MAX_BYTES]
-        # best-effort decode (if truncation splits a multibyte char, drop invalid tail)
-        password = pw_bytes.decode("utf-8", errors="ignore")
-
-    return pwd_context.hash(password)
+    # passlib/bcrypt は入力が長いと例外を投げる場合があるので、
+    # メッセージを見て安全に再試行する（運用で落とさない）
+    try:
+        return pwd_context.hash(pw)
+    except Exception as e:
+        msg = str(e).lower()
+        if "72 bytes" in msg or "longer than 72" in msg:
+            pw2 = _truncate_to_bcrypt_limit(pw)
+            return pwd_context.hash(pw2)
+        raise
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
