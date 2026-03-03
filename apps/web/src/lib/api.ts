@@ -880,55 +880,6 @@ export async function getMe(): Promise<Me> {
 // =====================
 // Invites / Seats (Store)
 // =====================
-export type Seats = {
-  store_id: string;
-  plan_code: string;
-  seat_limit: number;
-  active_users: number;
-};
-
-export type Invite = {
-  id: string;
-  store_id: string;
-  code: string;
-  role: string;
-  max_uses: number;
-  used_count: number;
-  expires_at?: string | null;
-  created_at: string;
-};
-
-export async function getSeats(): Promise<Seats> {
-  return await apiFetch<Seats>("/api/v1/invites/seats", { method: "GET", auth: true, cache: "no-store" });
-}
-
-export async function listInvites(): Promise<Invite[]> {
-  return await apiFetch<Invite[]>("/api/v1/invites", { method: "GET", auth: true, cache: "no-store" });
-}
-
-export async function createInvite(input?: { role?: string; max_uses?: number; code_length?: number; expires_at?: string | null }): Promise<Invite> {
-  return await apiFetch<Invite>("/api/v1/invites", {
-    method: "POST",
-    auth: true,
-    body: {
-      role: input?.role ?? "staff",
-      max_uses: input?.max_uses ?? 1,
-      code_length: input?.code_length ?? 10,
-      expires_at: input?.expires_at ?? null,
-    },
-  });
-}
-
-export async function registerWithInvite(input: { invite_code: string; email: string; password: string; name: string }): Promise<{ created: boolean }> {
-  return await apiFetch<{ created: boolean }>("/api/v1/auth/register-invite", {
-    method: "POST",
-    auth: false,
-    body: input,
-  });
-}
-
-
-// apps/web/src/lib/api.ts (例：既存に合わせて追記)
 export type RegisterOwnerPayload = {
   store: {
     name: string;
@@ -945,22 +896,118 @@ export type RegisterOwnerPayload = {
   };
 };
 
-export async function registerOwner(payload: RegisterOwnerPayload) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/register-owner`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify(payload),
-  });
+type StoreCreateRequest = {
+  name: string;
+  prefecture: string;
+  postal_code?: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  tel?: string | null;
+  email?: string | null;
+};
 
-  if (!res.ok) {
-    let detail = "登録に失敗しました";
-    try {
-      const j = await res.json();
-      detail = j?.detail ?? detail;
-    } catch {}
-    throw new Error(detail);
+type StoreCreateResponse = {
+  id: string;
+  name?: string;
+  prefecture?: string;
+};
+
+type RegisterOwnerRequest = {
+  email: string;
+  password: string;
+  name: string;
+  store_id: string;
+};
+
+type RegisterOwnerResponse = {
+  access_token?: string;
+  token_type?: string;
+  store_id?: string;
+};
+
+function utf8ByteLength(s: string): number {
+  try {
+    return new TextEncoder().encode(s).length;
+  } catch {
+    // Fallback (very old env). Rough estimate.
+    return s.length;
+  }
+}
+
+/**
+ * 初回登録（店舗作成 → オーナー登録）
+ * API仕様:
+ * 1) POST /api/v1/stores -> { id: ... }
+ * 2) POST /api/v1/auth/register-owner -> { email,password,name,store_id }
+ */
+export async function registerOwner(payload: RegisterOwnerPayload): Promise<RegisterOwnerResponse> {
+  const storeName = payload.store.name.trim();
+  const prefecture = payload.store.prefecture.trim();
+
+  const ownerName = payload.owner.name.trim();
+  const ownerEmail = payload.owner.email.trim();
+  const ownerPassword = payload.owner.password;
+
+  if (!storeName) throw new Error("店舗名は必須です");
+  if (!prefecture) throw new Error("都道府県は必須です");
+  if (!ownerName) throw new Error("氏名は必須です");
+  if (!ownerEmail) throw new Error("メールは必須です");
+  if (!ownerPassword) throw new Error("パスワードは必須です");
+
+  // bcrypt 72byte制限（API側でもtruncate済みだが、UXとしてフロントでも警告）
+  const pwBytes = utf8ByteLength(ownerPassword);
+  if (pwBytes > 72) {
+    throw new Error("パスワードが長すぎます（72バイト以内にしてください）");
   }
 
-  return res.json();
+  // 1) 店舗作成
+  const storeReq: StoreCreateRequest = {
+    name: storeName,
+    prefecture,
+    postal_code: payload.store.zip?.trim() || null,
+    address1: payload.store.address1?.trim() || null,
+    address2: payload.store.address2?.trim() || null,
+    tel: payload.store.phone?.trim() || null,
+    email: null,
+  };
+
+  const store = await apiFetch<StoreCreateResponse>("/api/v1/stores", {
+    method: "POST",
+    auth: false,
+    body: storeReq,
+  });
+
+  if (!store?.id) {
+    throw new Error("店舗作成に失敗しました（store_id が取得できません）");
+  }
+
+  // store_id をフロントで使い回すため保存（既存のgetCurrentStoreIdと整合）
+  if (typeof window !== "undefined") {
+    try {
+      window.localStorage.setItem("store_id", store.id);
+    } catch {
+      // ignore
+    }
+  }
+
+  // 2) オーナー登録（フラットpayload）
+  const regReq: RegisterOwnerRequest = {
+    email: ownerEmail,
+    password: ownerPassword,
+    name: ownerName,
+    store_id: store.id,
+  };
+
+  const reg = await apiFetch<RegisterOwnerResponse>("/api/v1/auth/register-owner", {
+    method: "POST",
+    auth: false,
+    body: regReq,
+  });
+
+  // APIが store_id を返さない場合もあるので補完
+  if (!reg.store_id) {
+    reg.store_id = store.id;
+  }
+
+  return reg;
 }
