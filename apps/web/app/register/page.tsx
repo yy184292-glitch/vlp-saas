@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken, registerWithInvite } from "@/lib/api";
+import { getAccessToken, login, registerWithInvite, setAccessToken } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -15,7 +15,6 @@ export default function RegisterPage() {
 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
 
   useEffect(() => {
     const token = getAccessToken();
@@ -24,17 +23,33 @@ export default function RegisterPage() {
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
+
     setError(null);
     setBusy(true);
 
     try {
-      await registerWithInvite({
+      const res = await registerWithInvite({
         invite_code: inviteCode.trim(),
         name: name.trim(),
         email: email.trim(),
         password,
       });
-      setDone(true);
+
+      // 1) APIがtokenを返すならそれを採用
+      const accessToken =
+        res && typeof res === "object" && "access_token" in (res as any) ? String((res as any).access_token || "") : "";
+
+      if (accessToken) {
+        setAccessToken(accessToken);
+        router.replace("/dashboard");
+        return;
+      }
+
+      // 2) tokenが無い場合はログインしてtoken取得（完全互換）
+      const loggedIn = await login(email.trim(), password);
+      setAccessToken(loggedIn.access_token);
+      router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -45,9 +60,7 @@ export default function RegisterPage() {
   return (
     <main style={{ margin: "48px auto", padding: 16, maxWidth: 460 }}>
       <h1 style={{ fontSize: 28, fontWeight: 800, marginBottom: 8 }}>VLPsystem 登録</h1>
-      <div style={{ color: "#666", marginBottom: 16 }}>
-        店舗管理者から受け取った「招待コード」で登録してください。
-      </div>
+      <div style={{ color: "#666", marginBottom: 16 }}>店舗管理者から受け取った「招待コード」で登録してください。</div>
 
       {error && (
         <div
@@ -64,89 +77,71 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {done ? (
-        <div
+      <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>招待コード</span>
+          <input
+            value={inviteCode}
+            onChange={(e) => setInviteCode(e.target.value)}
+            disabled={busy}
+            placeholder="例: ABCD1234EF"
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>氏名</span>
+          <input
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            disabled={busy}
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Email</span>
+          <input
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            disabled={busy}
+            autoComplete="email"
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          />
+        </label>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          <span>Password</span>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            disabled={busy}
+            autoComplete="new-password"
+            type="password"
+            style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
+          />
+        </label>
+
+        <button
+          type="submit"
+          disabled={busy || !inviteCode.trim() || !name.trim() || !email.trim() || !password}
           style={{
-            border: "1px solid #86efac",
-            background: "#dcfce7",
-            padding: 12,
-            borderRadius: 8,
+            padding: 10,
+            borderRadius: 10,
+            border: "1px solid #111",
+            background: "#111",
+            color: "#fff",
+            cursor: busy ? "not-allowed" : "pointer",
+            fontWeight: 800,
           }}
         >
-          登録が完了しました。ログイン画面からログインしてください。
-          <div style={{ marginTop: 12 }}>
-            <a href="/login" style={{ fontWeight: 700 }}>
-              ログインへ
-            </a>
-          </div>
+          {busy ? "登録中..." : "登録してダッシュボードへ"}
+        </button>
+
+        <div style={{ marginTop: 8, fontSize: 13, color: "#666" }}>
+          すでにアカウントがある場合は <a href="/login">ログイン</a>
         </div>
-      ) : (
-        <form onSubmit={onSubmit} style={{ display: "grid", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span>招待コード</span>
-            <input
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
-              disabled={busy}
-              placeholder="例: ABCD1234EF"
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <span>氏名</span>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              disabled={busy}
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <span>Email</span>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              disabled={busy}
-              autoComplete="email"
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-            />
-          </label>
-
-          <label style={{ display: "grid", gap: 6 }}>
-            <span>Password</span>
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              disabled={busy}
-              autoComplete="new-password"
-              type="password"
-              style={{ padding: 10, borderRadius: 8, border: "1px solid #ddd" }}
-            />
-          </label>
-
-          <button
-            type="submit"
-            disabled={busy || !inviteCode.trim() || !name.trim() || !email.trim() || !password}
-            style={{
-              padding: 10,
-              borderRadius: 10,
-              border: "1px solid #111",
-              background: "#111",
-              color: "#fff",
-              cursor: busy ? "not-allowed" : "pointer",
-              fontWeight: 800,
-            }}
-          >
-            {busy ? "登録中..." : "登録する"}
-          </button>
-
-          <div style={{ marginTop: 8, fontSize: 13, color: "#666" }}>
-            すでにアカウントがある場合は <a href="/login">ログイン</a>
-          </div>
-        </form>
-      )}
+      </form>
     </main>
   );
 }
