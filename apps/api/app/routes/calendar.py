@@ -1,36 +1,21 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timezone
-from typing import Optional
+from datetime import date
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import and_, select
+from sqlalchemy import and_, cast, select
 from sqlalchemy.orm import Session
+from sqlalchemy.types import Date as SA_Date
 
 from app.db.session import get_db
-from app.dependencies.auth import get_current_user  # ★ users.py と揃える
+from app.deps.auth import get_current_user
 from app.models.instruction_order import InstructionOrderORM
 from app.models.car import Car
 from app.models.user import User
 from app.schemas.calendar import CalendarDayOut, CalendarEventOut, InstructionOrderOut
 
 router = APIRouter(tags=["calendar"])
-
-
-def _to_utc_dt(d: date, *, end_of_day: bool) -> datetime:
-    # DBはTIMESTAMPTZ想定（UTCでクエリ）
-    if end_of_day:
-        return datetime.combine(d, time(23, 59, 59), tzinfo=timezone.utc)
-    return datetime.combine(d, time(0, 0, 0), tzinfo=timezone.utc)
-
-
-def _safe_date(dt: Optional[datetime]) -> Optional[date]:
-    if dt is None:
-        return None
-    try:
-        return dt.date()
-    except Exception:
-        return None
 
 
 @router.get("/calendar/events", response_model=list[CalendarEventOut])
@@ -49,18 +34,19 @@ def list_calendar_events(
     if date_to < date_from:
         raise HTTPException(status_code=400, detail="Invalid range")
 
-    start_dt = _to_utc_dt(date_from, end_of_day=False)
-    end_dt = _to_utc_dt(date_to, end_of_day=True)
+    # ★ DB側の型ズレ（DATE / TIMESTAMP / TIMESTAMPTZ）に強くするため、
+    #   比較を "date" ベースに寄せる
+    received_date = cast(InstructionOrderORM.received_at, SA_Date)
+    due_date = cast(InstructionOrderORM.due_at, SA_Date)
 
-    # 期間内に1日でも重なるものを取得
     stmt = (
         select(InstructionOrderORM, Car)
         .outerjoin(Car, Car.id == InstructionOrderORM.car_id)
         .where(
             InstructionOrderORM.store_id == user.store_id,
             and_(
-                InstructionOrderORM.received_at <= end_dt,
-                InstructionOrderORM.due_at >= start_dt,
+                received_date <= date_to,
+                due_date >= date_from,
             ),
         )
         .order_by(InstructionOrderORM.due_at.asc())
@@ -70,11 +56,8 @@ def list_calendar_events(
     events: list[CalendarEventOut] = []
 
     for ins, car in rows:
-        # ★NULL安全：ここで落ちると 500 になるので弾く
-        start_d = _safe_date(getattr(ins, "received_at", None))
-        end_d = _safe_date(getattr(ins, "due_at", None))
-        if start_d is None or end_d is None:
-            # データ不整合はスキップ（500にしない）
+        # received_at/due_at は ORM 上 nullable=False だが、万一のデータ不整合でも落とさない
+        if getattr(ins, "received_at", None) is None or getattr(ins, "due_at", None) is None:
             continue
 
         title = "指示書"
@@ -84,8 +67,8 @@ def list_calendar_events(
         events.append(
             CalendarEventOut(
                 id=ins.id,
-                start=start_d,
-                end=end_d,
+                start=ins.received_at.date(),
+                end=ins.due_at.date(),
                 due_at=ins.due_at,
                 status=ins.status,
                 title=title,
@@ -107,16 +90,16 @@ def get_calendar_day(
     - その日に「帯がかかる」指示書（received_at <= date <= due_at）を返す
     """
 
-    start_dt = _to_utc_dt(target, end_of_day=False)
-    end_dt = _to_utc_dt(target, end_of_day=True)
+    received_date = cast(InstructionOrderORM.received_at, SA_Date)
+    due_date = cast(InstructionOrderORM.due_at, SA_Date)
 
     stmt = (
         select(InstructionOrderORM, Car)
         .outerjoin(Car, Car.id == InstructionOrderORM.car_id)
         .where(
             InstructionOrderORM.store_id == user.store_id,
-            InstructionOrderORM.received_at <= end_dt,
-            InstructionOrderORM.due_at >= start_dt,
+            received_date <= target,
+            due_date >= target,
         )
         .order_by(InstructionOrderORM.due_at.asc())
     )
@@ -125,7 +108,6 @@ def get_calendar_day(
     items: list[InstructionOrderOut] = []
 
     for ins, car in rows:
-        # ★NULL安全（念のため）
         if getattr(ins, "received_at", None) is None or getattr(ins, "due_at", None) is None:
             continue
 
