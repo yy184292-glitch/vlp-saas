@@ -39,6 +39,15 @@ class LoginOut(BaseModel):
     role: str
 
 
+class RegisterOut(BaseModel):
+    created: bool = True
+    access_token: str
+    token_type: str = "bearer"
+    user_id: UUID
+    store_id: UUID
+    role: str
+
+
 class RegisterOwnerIn(BaseModel):
     """店舗オーナー（初期管理者）登録
 
@@ -125,11 +134,11 @@ def login(
 # register (owner/admin)
 # ============================================================
 
-@router.post("/auth/register-owner")
+@router.post("/auth/register-owner", response_model=RegisterOut)
 def register_owner(
     body: RegisterOwnerIn,
     db: Session = Depends(get_db),
-):
+) -> RegisterOut:
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
@@ -159,18 +168,30 @@ def register_owner(
 
     db.add(user)
     db.commit()
-    return {"created": True}
+
+    token = create_access_token(
+        subject=str(user.id),
+        expires_delta=timedelta(hours=24),
+    )
+
+    return RegisterOut(
+        created=True,
+        access_token=token,
+        user_id=user.id,
+        store_id=body.store_id,
+        role="admin",
+    )
 
 
 # ============================================================
 # register with invite (staff/manager)
 # ============================================================
 
-@router.post("/auth/register-invite")
+@router.post("/auth/register-invite", response_model=RegisterOut)
 def register_with_invite(
     body: RegisterInviteIn,
     db: Session = Depends(get_db),
-):
+) -> RegisterOut:
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
@@ -231,4 +252,16 @@ def register_with_invite(
     db.add(user)
     db.add(inv)
     db.commit()
-    return {"created": True}
+
+    token = create_access_token(
+        subject=str(user.id),
+        expires_delta=timedelta(hours=24),
+    )
+
+    return RegisterOut(
+        created=True,
+        access_token=token,
+        user_id=user.id,
+        store_id=inv.store_id,
+        role=role,
+    )
