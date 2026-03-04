@@ -4,7 +4,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from typing import Annotated
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -102,7 +103,7 @@ def _utcnow() -> datetime:
 @limiter.limit("10/minute")
 def login(
     request: Request,
-    body: LoginIn,
+    body: Annotated[LoginIn, Body()],
     db: Session = Depends(get_db),
 ) -> LoginOut:
     user = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
@@ -141,7 +142,7 @@ def login(
 @limiter.limit("5/minute")
 def register_owner(
     request: Request,
-    body: RegisterOwnerIn,
+    body: Annotated[RegisterOwnerIn, Body()],
     db: Session = Depends(get_db),
 ) -> RegisterOut:
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
@@ -196,7 +197,7 @@ def register_owner(
 @limiter.limit("5/minute")
 def register_with_invite(
     request: Request,
-    body: RegisterInviteIn,
+    body: Annotated[RegisterInviteIn, Body()],
     db: Session = Depends(get_db),
 ) -> RegisterOut:
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
