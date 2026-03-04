@@ -3,12 +3,17 @@ import type { NextRequest } from "next/server";
 
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
-function getAllowedOrigins(): string[] {
+function getAllowedOrigins(request: NextRequest): string[] {
   const appUrl = (process.env.NEXT_PUBLIC_APP_URL || "").replace(/\/+$/, "");
+  // x-forwarded-proto + host でデプロイ先の自己オリジンを自動検出（Render 等）
+  const proto = request.headers.get("x-forwarded-proto") ?? "https";
+  const host = request.headers.get("host") ?? "";
+  const selfOrigin = host ? `${proto}://${host}` : "";
   return [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
     ...(appUrl ? [appUrl] : []),
+    ...(selfOrigin ? [selfOrigin] : []),
   ];
 }
 
@@ -25,7 +30,7 @@ export function middleware(request: NextRequest) {
   if (MUTATION_METHODS.has(method)) {
     const origin = request.headers.get("origin");
     if (origin) {
-      const allowed = getAllowedOrigins();
+      const allowed = getAllowedOrigins(request);
       if (!allowed.includes(origin.replace(/\/+$/, ""))) {
         return new NextResponse(
           JSON.stringify({ detail: "CSRF check failed" }),

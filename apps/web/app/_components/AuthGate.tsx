@@ -12,7 +12,7 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
-  const [status, setStatus] = useState<"checking" | "authed" | "redirecting">("checking");
+  const [status, setStatus] = useState<"checking" | "authed" | "redirecting" | "unavailable">("checking");
   const redirectingRef = useRef(false);
 
   useEffect(() => {
@@ -31,6 +31,9 @@ export default function AuthGate({ children }: { children: ReactNode }) {
         if (cancelled) return;
         if (res.ok) {
           setStatus("authed");
+        } else if (res.status === 503) {
+          // API コールドスタート等 → ログインへ飛ばさず待機表示
+          setStatus("unavailable");
         } else {
           setStatus("redirecting");
           if (!redirectingRef.current) {
@@ -55,6 +58,10 @@ export default function AuthGate({ children }: { children: ReactNode }) {
 
   if (status === "checking") {
     return <div style={{ padding: 16, color: "#666" }}>Checking auth...</div>;
+  }
+
+  if (status === "unavailable") {
+    return <div style={{ padding: 16, color: "#666" }}>APIサービスに接続中... しばらくお待ちください。</div>;
   }
 
   if (status === "redirecting") {

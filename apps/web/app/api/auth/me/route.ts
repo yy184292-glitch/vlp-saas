@@ -7,6 +7,13 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 export async function GET(request: NextRequest) {
+  if (!API_BASE) {
+    return NextResponse.json(
+      { detail: "API_BASE_URL が設定されていません。Render の環境変数を確認してください。" },
+      { status: 503 },
+    );
+  }
+
   const token = request.cookies.get("access_token")?.value;
   if (!token) {
     return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
@@ -24,7 +31,9 @@ export async function GET(request: NextRequest) {
 
     const data = await apiRes.json();
     return NextResponse.json(data);
-  } catch {
-    return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+  } catch (e) {
+    console.error("[/api/auth/me] error:", e);
+    // API サービスが起動中 or ネットワーク障害 → 503 を返してフロント側で区別可能にする
+    return NextResponse.json({ detail: "APIサービスに接続できませんでした" }, { status: 503 });
   }
 }

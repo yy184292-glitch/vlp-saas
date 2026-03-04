@@ -7,6 +7,13 @@ const API_BASE = (
 ).replace(/\/+$/, "");
 
 export async function POST(request: NextRequest) {
+  if (!API_BASE) {
+    return NextResponse.json(
+      { detail: "API_BASE_URL が設定されていません。Render の環境変数を確認してください。" },
+      { status: 503 },
+    );
+  }
+
   try {
     const body = await request.json();
 
@@ -22,12 +29,15 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(data, { status: apiRes.status });
     }
 
+    if (!data.access_token) {
+      return NextResponse.json({ detail: "access_token が取得できませんでした" }, { status: 502 });
+    }
+
     const response = NextResponse.json(
       { user_id: data.user_id, store_id: data.store_id, role: data.role },
       { status: 200 },
     );
 
-    // access_token を httpOnly Cookie にセット（JS から読めない）
     response.cookies.set("access_token", data.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -37,7 +47,8 @@ export async function POST(request: NextRequest) {
     });
 
     return response;
-  } catch {
-    return NextResponse.json({ detail: "Internal server error" }, { status: 500 });
+  } catch (e) {
+    console.error("[/api/auth/login] error:", e);
+    return NextResponse.json({ detail: "ログインサービスに接続できませんでした" }, { status: 503 });
   }
 }
