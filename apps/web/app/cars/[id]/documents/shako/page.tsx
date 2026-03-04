@@ -1,78 +1,72 @@
-// app/cars/[id]/documents/shako/page.tsx
 "use client";
 
-import * as React from "react";
-import { useParams } from "next/navigation";
-import AuthGate from "../../../../_components/AuthGate";
-import type { Car } from "@/lib/api";
-import { getCar } from "@/lib/api";
+import React, { useEffect, useRef } from "react";
 
-function v(v: string | null | undefined): string {
-  return v && v.trim() ? v : "";
-}
+export default function Page() {
+  const printedRef = useRef(false);
 
-export default function DocumentPage() {
-  const params = useParams<{ id: string }>();
-  const id = params?.id;
-
-  const [car, setCar] = React.useState<Car | null>(null);
-  const [err, setErr] = React.useState<string | null>(null);
-
-  React.useEffect(() => {
-    if (!id) return;
-    let cancelled = false;
-    getCar(id)
-      .then((c) => {
-        if (!cancelled) setCar(c);
-      })
-      .catch((e) => {
-        if (!cancelled) setErr(e?.message ?? "Failed to load car");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  React.useEffect(() => {
-    // データが来てから印刷を開く
-    if (!car) return;
-    const t = window.setTimeout(() => window.print(), 350);
-    return () => window.clearTimeout(t);
-  }, [car]);
+  useEffect(() => {
+    if (printedRef.current) return;
+    printedRef.current = true;
+    const t = setTimeout(() => window.print(), 300);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
-    <AuthGate>
-      <main className="p-4 print:p-0">
-        {err ? <div className="text-sm text-rose-600">{err}</div> : null}
-        {!car ? (
-          <div className="text-sm text-muted-foreground">読み込み中…</div>
-        ) : (
-          <div
-            className="relative mx-auto bg-white text-black"
-            style={
-              width: "210mm",
-              minHeight: "297mm",
-            }
-          >
-            
-            <div className="relative p-8 print:p-6 text-[12px] leading-6">
-              <h1 className="text-lg font-bold mb-4">車庫証明（申請）</h1>
-              <div className="grid grid-cols-2 gap-2">
-                <div>車名：<span className="font-medium">{v(car.make ?? car.maker)} {v(car.model)}</span></div>
-                <div>登録番号：<span className="font-medium">{v(car.carNumber)}</span></div>
-                <div>車台番号：<span className="font-medium">{v(car.vin)}</span></div>
-                <div>年式：<span className="font-medium">{car.year ?? ""}</span></div>
-                <div>型式：<span className="font-medium">{v(car.modelCode)}</span></div>
-                <div>色：<span className="font-medium">{v(car.color)}</span></div>
-              </div>
+    <main
+      style={{
+        margin: 0,
+        padding: 0,
+        width: "210mm",
+        minHeight: "297mm",
+        background: "white",
+      }}
+    >
+      <style>{`@page { size: A4; margin: 10mm; }
+@media print {
+  body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .no-print { display: none !important; }
+}`}</style>
 
-              <div className="mt-8 text-xs text-muted-foreground print:text-black">
-                ※ これは第1段階のテンプレートです。次工程で各書類の枠に合わせて “位置合わせ” してハンコだけの状態に仕上げます。
-              </div>
-            </div>
-          </div>
-        )}
-      </main>
-    </AuthGate>
+      <div
+        className="no-print"
+        style={{
+          position: "sticky",
+          top: 0,
+          background: "white",
+          borderBottom: "1px solid #eee",
+          padding: "8px 12px",
+          zIndex: 10,
+        }}
+      >
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <strong>車庫証明（帳票）</strong>
+          <button
+            type="button"
+            onClick={() => window.print()}
+            style={{
+              marginLeft: "auto",
+              padding: "6px 10px",
+              border: "1px solid #ddd",
+              borderRadius: 6,
+              background: "white",
+              cursor: "pointer",
+            }}
+          >
+            印刷
+          </button>
+        </div>
+        <div style={{ fontSize: 12, color: "#666", marginTop: 4 }}>
+          ※ ブラウザによっては自動印刷がブロックされるため、必要なら「印刷」ボタンを押してください。
+        </div>
+      </div>
+
+      <div style={{ padding: "10mm" }}>
+        <h1 style={{ fontSize: 18, fontWeight: 700, margin: 0 }}>車庫証明（仮）</h1>
+        <p style={{ marginTop: 8, color: "#666", fontSize: 14 }}>
+          次工程でテンプレ（背景PDF/画像）＋項目ON/OFFに合わせてレイアウト確定します。
+        </p>
+      </div>
+    </main>
   );
 }
