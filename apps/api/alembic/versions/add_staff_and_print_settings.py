@@ -32,7 +32,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
-    op.create_index("ix_store_staff_store_id", "store_staff", ["store_id"])
+    op.execute("CREATE INDEX IF NOT EXISTS ix_store_staff_store_id ON store_staff (store_id)")
 
     # car status master (per store)
     op.create_table(
@@ -72,7 +72,7 @@ def downgrade() -> None:
         "new_owner_address2","new_owner_address1","new_owner_postal_code","new_owner_name_kana","new_owner_name",
         "owner_tel","owner_address2","owner_address1","owner_postal_code","owner_name_kana","owner_name",
     ]:
-        op.drop_column("cars", col)
+        op.execute("DROP INDEX IF EXISTS ix_store_staff_store_id")
 
     # store settings
     op.drop_column("store_settings", "print_fields")
