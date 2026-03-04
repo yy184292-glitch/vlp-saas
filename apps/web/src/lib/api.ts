@@ -411,8 +411,8 @@ export type Car = {
   color: string | null;
 
   // ★追加: 実入力（仕入れ値 / 売却値）
-  purchasePrice: number | null; // purchase_price
-  salePrice: number | null; // sale_price
+  purchasePrice: number | null;
+  salePrice: number | null;
 
   expectedBuyPrice: number | null;
   expectedSellPrice: number | null;
@@ -420,9 +420,24 @@ export type Car = {
   expectedProfitRate: number | null;
   valuationAt: string | null;
 
+  // ===== 書類印刷用 =====
+  ownerName: string | null;
+  ownerNameKana: string | null;
+  ownerPostalCode: string | null;
+  ownerAddress1: string | null;
+  ownerAddress2: string | null;
+  ownerTel: string | null;
+
+  newOwnerName: string | null;
+  newOwnerNameKana: string | null;
+  newOwnerPostalCode: string | null;
+  newOwnerAddress1: string | null;
+  newOwnerAddress2: string | null;
+
   createdAt: string | null;
   updatedAt: string | null;
 };
+
 
 export type CarInput = {
   stock_no?: string | null;
