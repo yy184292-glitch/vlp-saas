@@ -19,7 +19,7 @@ type StoreSettings = {
   tax_rate: string; // decimal string
   auto_expense_on_stock_in: boolean;
 
-  invoice_due_rule_type: \"days\" | \"eom\";
+  invoice_due_rule_type: "days" | "eom";
   invoice_due_days: number;
   invoice_due_months: number;
 };
