@@ -9,6 +9,7 @@ import { apiFetch } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
@@ -17,6 +18,10 @@ type StoreSettings = {
   store_id: string;
   tax_rate: string; // decimal string
   auto_expense_on_stock_in: boolean;
+
+  invoice_due_rule_type: \"days\" | \"eom\";
+  invoice_due_days: number;
+  invoice_due_months: number;
 };
 
 type Store = {
@@ -57,6 +62,10 @@ export default function SettingsPage() {
 
   const [taxRate, setTaxRate] = React.useState("0.10");
   const [autoExpense, setAutoExpense] = React.useState(true);
+
+  const [invoiceDueRuleType, setInvoiceDueRuleType] = React.useState<"days" | "eom">("days");
+  const [invoiceDueDays, setInvoiceDueDays] = React.useState("30");
+  const [invoiceDueMonths, setInvoiceDueMonths] = React.useState("0");
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -107,7 +116,7 @@ export default function SettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, [settings, taxRate, autoExpense]);
+  }, [settings, taxRate, autoExpense, invoiceDueRuleType, invoiceDueDays, invoiceDueMonths]);
 
   const uploadLogo = React.useCallback(
     async (file: File) => {
@@ -233,6 +242,99 @@ export default function SettingsPage() {
             </div>
             <Switch checked={autoExpense} onCheckedChange={setAutoExpense} />
           </div>
+
+<div className="rounded-2xl border bg-white p-4 space-y-4">
+  <div className="space-y-1">
+    <div className="font-medium">支払期限ルール（見積・請求）</div>
+    <div className="text-sm text-muted-foreground">発行日（issued_at）から自動で支払期限を計算します。</div>
+  </div>
+
+  <div className="grid gap-2 max-w-[420px]">
+    <Label>ルール</Label>
+    <Select value={invoiceDueRuleType} onValueChange={(v) => setInvoiceDueRuleType(v as "days" | "eom")}>
+      <SelectTrigger className="bg-white">
+        <SelectValue placeholder="選択" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="days">発行日から○日</SelectItem>
+        <SelectItem value="eom">月末締め（○ヶ月後の月末）</SelectItem>
+      </SelectContent>
+    </Select>
+  </div>
+
+  {invoiceDueRuleType === "days" ? (
+    <div className="grid gap-2 max-w-[240px]">
+      <Label htmlFor="invoiceDueDays">日数</Label>
+      <Input
+        id="invoiceDueDays"
+        value={invoiceDueDays}
+        onChange={(e) => setInvoiceDueDays(e.target.value.replace(/[^0-9]/g, ""))}
+        inputMode="numeric"
+        className="bg-white"
+        placeholder="30"
+      />
+    </div>
+  ) : (
+    <div className="grid gap-2 max-w-[240px]">
+      <Label htmlFor="invoiceDueMonths">ヶ月後</Label>
+      <Input
+        id="invoiceDueMonths"
+        value={invoiceDueMonths}
+        onChange={(e) => setInvoiceDueMonths(e.target.value.replace(/[^0-9]/g, ""))}
+        inputMode="numeric"
+        className="bg-white"
+        placeholder="0"
+      />
+    </div>
+  )}
+
+  <div className="flex flex-wrap gap-2">
+    <Button
+      type="button"
+      variant="outline"
+      className="bg-white/70 hover:bg-white"
+      onClick={() => {
+        setInvoiceDueRuleType("eom");
+        setInvoiceDueMonths("0");
+      }}
+    >
+      当月末
+    </Button>
+    <Button
+      type="button"
+      variant="outline"
+      className="bg-white/70 hover:bg-white"
+      onClick={() => {
+        setInvoiceDueRuleType("eom");
+        setInvoiceDueMonths("1");
+      }}
+    >
+      翌月末
+    </Button>
+    <Button
+      type="button"
+      variant="outline"
+      className="bg-white/70 hover:bg-white"
+      onClick={() => {
+        setInvoiceDueRuleType("days");
+        setInvoiceDueDays("30");
+      }}
+    >
+      30日
+    </Button>
+    <Button
+      type="button"
+      variant="outline"
+      className="bg-white/70 hover:bg-white"
+      onClick={() => {
+        setInvoiceDueRuleType("days");
+        setInvoiceDueDays("60");
+      }}
+    >
+      60日
+    </Button>
+  </div>
+</div>
 
           <div className="flex gap-2">
             <Button onClick={save} disabled={loading || !settings}>

@@ -39,6 +39,7 @@ class BillingCreateIn(BaseModel):
 
     source_work_order_id: Optional[UUID] = None
     issued_at: Optional[datetime] = None
+    due_at: Optional[datetime] = None  # 手動指定時のみ（指定があれば due_is_manual=True）
 
     lines: list[BillingLineIn] = Field(default_factory=list)
     meta: Optional[dict[str, Any]] = None
@@ -59,6 +60,7 @@ class BillingUpdateIn(BaseModel):
 
     source_work_order_id: Optional[UUID] = None
     issued_at: Optional[datetime] = None
+    due_at: Optional[datetime] = None  # 手動指定時のみ（指定があれば due_is_manual=True）
 
     lines: Optional[list[BillingLineIn]] = None
     meta: Optional[dict[str, Any]] = None
@@ -90,6 +92,10 @@ class BillingOut(BaseModel):
     tax_rounding: Optional[str] = None
 
     issued_at: Optional[datetime] = None
+
+    # 支払期限（DB保存）
+    due_at: Optional[datetime] = None
+    due_is_manual: bool = False
 
     created_at: datetime
     updated_at: datetime

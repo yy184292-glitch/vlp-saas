@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import csv
+import calendar
 import io
 import json
 import traceback
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR, ROUND_HALF_UP
 from typing import Any, List, Optional
 from uuid import UUID, uuid4
@@ -24,6 +25,7 @@ from app.models.inventory import InventoryItemORM, StockMoveORM
 
 from app.db.session import get_db
 from app.models.billing import BillingDocumentORM, BillingLineORM
+from app.models.store_setting import StoreSettingORM
 from app.models.system_setting import SystemSettingORM
 from app.schemas.billing import (
     BillingCreateIn,
@@ -45,6 +47,42 @@ router = APIRouter(tags=["billing"])
 
 def _utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+def _end_of_month(dt: datetime) -> datetime:
+    y = dt.year
+    m = dt.month
+    last_day = calendar.monthrange(y, m)[1]
+    return dt.replace(day=last_day)
+
+
+def _add_months(dt: datetime, months: int) -> datetime:
+    # keep day if possible; clamp to month end
+    y = dt.year + (dt.month - 1 + months) // 12
+    m = (dt.month - 1 + months) % 12 + 1
+    last_day = calendar.monthrange(y, m)[1]
+    day = min(dt.day, last_day)
+    return dt.replace(year=y, month=m, day=day)
+
+
+def _get_store_due_rule(db: Session, store_id: UUID) -> tuple[str, int, int]:
+    # store_settings が無い場合はデフォルト
+    row = db.get(StoreSettingORM, store_id)
+    if not row:
+        return ("days", 30, 0)
+    rule_type = getattr(row, "invoice_due_rule_type", None) or "days"
+    days = int(getattr(row, "invoice_due_days", 30) or 0)
+    months = int(getattr(row, "invoice_due_months", 0) or 0)
+    return (rule_type, days, months)
+
+
+def _calc_due_at(db: Session, store_id: UUID, issued_at: datetime) -> datetime:
+    rule_type, days, months = _get_store_due_rule(db, store_id)
+    if rule_type == "eom":
+        base = _add_months(issued_at, months)
+        return _end_of_month(base)
+    # default days
+    return issued_at + timedelta(days=days)
+
 
 
 def _jsonb_safe(v: Any) -> Any:
@@ -91,6 +129,8 @@ def _to_out(doc: BillingDocumentORM) -> BillingOut:
         tax_mode=doc.tax_mode,
         tax_rounding=doc.tax_rounding,
         issued_at=doc.issued_at,
+        due_at=getattr(doc, "due_at", None),
+        due_is_manual=bool(getattr(doc, "due_is_manual", False)),
         created_at=doc.created_at,
         updated_at=doc.updated_at,
     )
@@ -643,6 +683,16 @@ def create_billing(
     if status == "issued" and issued_at is None:
         issued_at = now
 
+
+    # 支払期限（due_at）
+    due_at = None
+    due_is_manual = False
+    if getattr(body, "due_at", None) is not None:
+        due_at = body.due_at
+        due_is_manual = True
+    elif issued_at is not None:
+        due_at = _calc_due_at(db, store_id, issued_at)
+
     doc = BillingDocumentORM(
         id=uuid4(),
         store_id=store_id,
@@ -658,6 +708,8 @@ def create_billing(
         tax_mode=tax_mode,
         tax_rounding=tax_rounding,
         issued_at=issued_at,
+        due_at=due_at,
+        due_is_manual=due_is_manual,
         source_work_order_id=getattr(body, "source_work_order_id", None),
         meta=_jsonb_safe(body.meta or {}),
         created_at=now,
@@ -848,6 +900,11 @@ def issue_billing(
     doc.status = "issued"
     if doc.issued_at is None:
         doc.issued_at = now
+
+    # issued 時に due_at を自動設定（手動上書きは尊重）
+    if getattr(doc, "issued_at", None) is not None and not bool(getattr(doc, "due_is_manual", False)):
+        doc.due_at = _calc_due_at(db, doc.store_id, doc.issued_at)
+
     doc.updated_at = now
 
     try:
@@ -1264,6 +1321,8 @@ def export_billing_pdf(
         set_font(10)
         right_x = width - margin_x
         c.drawRightString(right_x, y, f"発行日: {fmt_date(issued_at)}")
+        y -= 14
+        c.drawRightString(right_x, y, f"支払期限: {fmt_date(getattr(doc, 'due_at', None))}")
         y -= 14
         c.drawRightString(right_x, y, f"No: {doc_no}")
         y -= 14

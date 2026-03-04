@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from sqlalchemy import (
     Column,
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -137,6 +138,21 @@ class BillingDocumentORM(Base):
         DateTime(timezone=True),
         nullable=True,
         index=True,
+    )
+
+    # 支払期限（店舗デフォルトから自動計算 / 手動上書き可）
+    due_at = Column(
+        DateTime(timezone=True),
+        nullable=True,
+        index=True,
+    )
+
+    # due_at を手動変更した場合 true（issued_at 変更でも自動上書きしない）
+    due_is_manual = Column(
+        Boolean,
+        nullable=False,
+        server_default="false",
+        default=False,
     )
 
     source_work_order_id = Column(

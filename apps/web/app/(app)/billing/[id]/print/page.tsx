@@ -14,6 +14,8 @@ type BillingDoc = {
   tax_total: number;
   total: number;
   issued_at: string | null;
+  due_at?: string | null;
+  due_is_manual?: boolean;
   created_at: string;
 };
 
@@ -245,6 +247,8 @@ export default function BillingPrintPage() {
             <div className="meta-row">
               <div className="meta-key">発行日</div>
               <div className="meta-val">{formatDate(doc.issued_at ?? doc.created_at)}</div>
+              <div className="meta-key">支払期限</div>
+              <div className="meta-val" style={{ fontWeight: 700 }}>{formatDate(doc.due_at ?? null)}</div>
             </div>
             <div className="meta-row">
               <div className="meta-key">No</div>

@@ -13,6 +13,8 @@ type BillingDoc = {
   tax_total: number;
   total: number;
   issued_at: string | null;
+  due_at?: string | null;
+  due_is_manual?: boolean;
   created_at: string;
   updated_at?: string;
 };
@@ -41,6 +43,8 @@ type BillingUpdateIn = {
   status?: "draft" | "issued" | "void";
   customer_name?: string | null;
   meta?: Record<string, unknown>;
+  issued_at?: string | null;
+  due_at?: string | null;
   lines?: BillingLineIn[];
 };
 
@@ -96,6 +100,26 @@ function safeNumber(v: unknown, fallback = 0): number {
   return Number.isFinite(n) ? n : fallback;
 }
 
+
+function dateInputFromIso(iso: string | null | undefined): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function isoFromDateInput(ymd: string): string | null {
+  if (!ymd) return null;
+  const [y, m, d] = ymd.split("-").map((v) => Number(v));
+  if (!y || !m || !d) return null;
+  const dt = new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+  if (Number.isNaN(dt.getTime())) return null;
+  return dt.toISOString();
+}
+
 async function downloadFile(path: string, filename: string) {
   try {
     const res = await fetch(`${getApiBaseOrThrow()}${path}`, {
@@ -140,6 +164,8 @@ export default function BillingDetailPage() {
   // edit state
   const [editing, setEditing] = useState(false);
   const [draftCustomer, setDraftCustomer] = useState("");
+  const [draftIssuedDate, setDraftIssuedDate] = useState<string>("");
+  const [draftDueDate, setDraftDueDate] = useState<string>("");
   const [draftKind, setDraftKind] = useState<"invoice" | "estimate">("invoice");
   const [draftStatus, setDraftStatus] = useState<"draft" | "issued" | "void">("draft");
   const [draftLines, setDraftLines] = useState<BillingLineIn[]>([]);
@@ -242,6 +268,8 @@ export default function BillingDetailPage() {
         customer_name: draftCustomer.trim() || null,
         kind: draftKind,
         status: draftStatus,
+        issued_at: isoFromDateInput(draftIssuedDate),
+        due_at: isoFromDateInput(draftDueDate),
         lines: normalizedLines,
       };
 
