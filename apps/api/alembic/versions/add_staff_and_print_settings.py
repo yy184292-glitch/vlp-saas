@@ -45,7 +45,7 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False, server_default=sa.text("now()")),
     )
-    op.create_index("ix_car_status_master_store_id", "car_status_master", ["store_id"])
+    op.execute("CREATE INDEX IF NOT EXISTS ix_store_staff_store_id ON store_staff (store_id)")
 
     # store settings additions
     op.add_column("store_settings", sa.Column("default_staff_id", postgresql.UUID(as_uuid=True), nullable=True))
