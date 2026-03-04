@@ -168,6 +168,27 @@ export default function CarDetailClient({ carId }: { carId: string }) {
         <div className="rounded-xl border bg-white p-6 text-sm text-neutral-600">車両データがありません。</div>
       ) : tab === "details" ? (
         <div className="rounded-2xl border bg-white p-5 shadow-sm">
+<div className="mb-4 rounded-xl border bg-neutral-50 p-3">
+  <div className="text-sm font-semibold">書類印刷</div>
+  <div className="mt-2 flex flex-wrap gap-2">
+    <a className="rounded-md border bg-white px-3 py-2 text-sm hover:bg-neutral-100" href={`/cars/${car.id}/documents/ininjou`} target="_blank" rel="noreferrer">
+      委任状（記入あり・印刷）
+    </a>
+    <a className="rounded-md border bg-white px-3 py-2 text-sm hover:bg-neutral-100" href={`/cars/${car.id}/documents/jouto`} target="_blank" rel="noreferrer">
+      譲渡証明書（記入あり・印刷）
+    </a>
+    <a className="rounded-md border bg-white px-3 py-2 text-sm hover:bg-neutral-100" href="/forms/ininjou" target="_blank" rel="noreferrer">
+      委任状（原本）
+    </a>
+    <a className="rounded-md border bg-white px-3 py-2 text-sm hover:bg-neutral-100" href="/forms/jouto" target="_blank" rel="noreferrer">
+      譲渡証明書（原本）
+    </a>
+  </div>
+  <div className="mt-2 text-xs text-neutral-600">
+    ※ 記入ありは、車両の「所有者/新所有者」情報と、店舗の「受任者マスタ」「印刷項目ON/OFF」を反映します。
+  </div>
+</div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <div className="text-sm text-neutral-500">車種</div>

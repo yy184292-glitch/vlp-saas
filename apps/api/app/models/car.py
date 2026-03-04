@@ -54,6 +54,20 @@ class Car(Base):
     export_status = Column(String, nullable=True)
     export_image_url = Column(String, nullable=True)
     export_description = Column(Text, nullable=True)
+# --- 書類印刷用（委任状/譲渡証明） ---
+owner_name = Column(String, nullable=True)
+owner_name_kana = Column(String, nullable=True)
+owner_postal_code = Column(String, nullable=True)
+owner_address1 = Column(String, nullable=True)
+owner_address2 = Column(String, nullable=True)
+owner_tel = Column(String, nullable=True)
+
+new_owner_name = Column(String, nullable=True)
+new_owner_name_kana = Column(String, nullable=True)
+new_owner_postal_code = Column(String, nullable=True)
+new_owner_address1 = Column(String, nullable=True)
+new_owner_address2 = Column(String, nullable=True)
+
 
     created_at = Column(
         DateTime(timezone=True),

@@ -12,6 +12,9 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.deps.auth import get_current_user
 from app.models.master_category import ExpenseCategoryORM, WorkCategoryORM
+from app.models.store_staff import StoreStaffORM
+from app.models.car_status import CarStatusMasterORM
+import uuid
 from app.models.user import User
 
 router = APIRouter(tags=["masters"])
@@ -190,3 +193,206 @@ def create_work_category(
         raise
     db.refresh(row)
     return row
+
+
+class StoreStaffBase(BaseModel):
+    name: str
+    name_kana: Optional[str] = None
+    postal_code: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    tel: Optional[str] = None
+
+
+class StoreStaffOut(StoreStaffBase):
+    id: UUID
+    store_id: UUID
+
+    class Config:
+        from_attributes = True
+
+
+class StoreStaffCreate(StoreStaffBase):
+    pass
+
+
+class StoreStaffUpdate(BaseModel):
+    name: Optional[str] = None
+    name_kana: Optional[str] = None
+    postal_code: Optional[str] = None
+    address1: Optional[str] = None
+    address2: Optional[str] = None
+    tel: Optional[str] = None
+
+
+class CarStatusBase(BaseModel):
+    name: str
+    color: str = "#E5E7EB"
+    sort_order: int = 0
+
+
+class CarStatusOut(CarStatusBase):
+    id: UUID
+    store_id: UUID
+
+    class Config:
+        from_attributes = True
+
+
+DEFAULT_CAR_STATUSES = [
+    ("在庫", "#DCFCE7", 10),
+    ("商談中", "#FEF9C3", 20),
+    ("整備中", "#DBEAFE", 30),
+    ("売約", "#FFEDD5", 40),
+    ("納車済", "#E5E7EB", 50),
+]
+
+
+def _seed_car_status_if_empty(db: Session, sid: UUID) -> None:
+    has_status = db.execute(select(CarStatusMasterORM.id).where(CarStatusMasterORM.store_id == sid).limit(1)).first()
+    if has_status:
+        return
+    for name, color, order in DEFAULT_CAR_STATUSES:
+        db.add(CarStatusMasterORM(id=uuid.uuid4(), store_id=sid, name=name, color=color, sort_order=order))
+    db.commit()
+
+
+@router.get("/masters/staff", response_model=List[StoreStaffOut])
+def list_staff(
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> List[StoreStaffOut]:
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    rows = db.execute(select(StoreStaffORM).where(StoreStaffORM.store_id == sid).order_by(StoreStaffORM.created_at.asc())).scalars().all()
+    return rows
+
+
+@router.post("/masters/staff", response_model=StoreStaffOut)
+def create_staff(
+    body: StoreStaffCreate,
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StoreStaffOut:
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    row = StoreStaffORM(id=uuid.uuid4(), store_id=sid, **body.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.put("/masters/staff/{staff_id}", response_model=StoreStaffOut)
+def update_staff(
+    staff_id: UUID,
+    body: StoreStaffUpdate,
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StoreStaffOut:
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    row = db.get(StoreStaffORM, staff_id)
+    if not row or row.store_id != sid:
+        raise HTTPException(status_code=404, detail="not found")
+    for k, v in body.model_dump(exclude_unset=True).items():
+        setattr(row, k, v)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/masters/staff/{staff_id}")
+def delete_staff(
+    staff_id: UUID,
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    row = db.get(StoreStaffORM, staff_id)
+    if not row or row.store_id != sid:
+        raise HTTPException(status_code=404, detail="not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/masters/car-statuses", response_model=List[CarStatusOut])
+def list_car_statuses(
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> List[CarStatusOut]:
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    _seed_car_status_if_empty(db, sid)
+    rows = db.execute(select(CarStatusMasterORM).where(CarStatusMasterORM.store_id == sid).order_by(CarStatusMasterORM.sort_order.asc())).scalars().all()
+    return rows
+
+
+@router.post("/masters/car-statuses", response_model=CarStatusOut)
+def create_car_status(
+    body: CarStatusBase,
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> CarStatusOut:
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    row = CarStatusMasterORM(id=uuid.uuid4(), store_id=sid, **body.model_dump())
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.put("/masters/car-statuses/{status_id}", response_model=CarStatusOut)
+def update_car_status(
+    status_id: UUID,
+    body: CarStatusBase,
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> CarStatusOut:
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    row = db.get(CarStatusMasterORM, status_id)
+    if not row or row.store_id != sid:
+        raise HTTPException(status_code=404, detail="not found")
+    for k, v in body.model_dump().items():
+        setattr(row, k, v)
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
+@router.delete("/masters/car-statuses/{status_id}")
+def delete_car_status(
+    status_id: UUID,
+    store_id: Optional[UUID] = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    sid = user.store_id or store_id
+    if not sid:
+        raise HTTPException(status_code=400, detail="store_id required")
+    row = db.get(CarStatusMasterORM, status_id)
+    if not row or row.store_id != sid:
+        raise HTTPException(status_code=404, detail="not found")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}

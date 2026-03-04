@@ -4,6 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import Column, DateTime, ForeignKey, Numeric, Boolean, Index, Integer, String
+from sqlalchemy.dialects.postgresql import JSONB
 
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -46,3 +47,10 @@ class StoreSettingORM(Base):
     invoice_due_rule_type = Column(String(10), nullable=False, server_default="days")
     invoice_due_days = Column(Integer, nullable=False, server_default="30")
     invoice_due_months = Column(Integer, nullable=False, server_default="0")
+
+    # 書類印刷のデフォルト受任者（店舗スタッフ）
+    default_staff_id = Column(UUID(as_uuid=True), nullable=True)
+
+    # 書類印刷の項目ON/OFF設定（JSON）
+    # 例: {"ininjou": {"delegate": true, ...}, "jouto": {...}}
+    print_fields = Column(JSONB, nullable=True)

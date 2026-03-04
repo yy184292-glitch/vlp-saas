@@ -35,6 +35,9 @@ class StoreSettingsOut(BaseModel):
     invoice_due_days: int
     invoice_due_months: int
 
+    default_staff_id: Optional[UUID] = None
+    print_fields: Optional[dict] = None
+
     class Config:
         from_attributes = True
 
@@ -48,6 +51,9 @@ class StoreSettingsUpdateIn(BaseModel):
     invoice_due_months: Optional[int] = Field(default=None, ge=0, le=120)
     invoice_due_rule_type: Optional[str] = None  # "days" | "eom"
     invoice_due_days: Optional[int] = Field(default=None, ge=0, le=3650)
+
+    default_staff_id: Optional[UUID] = None
+    print_fields: Optional[dict] = None
 
 def _get_or_create(db: Session, store_id: UUID) -> StoreSettingORM:
     row = db.get(StoreSettingORM, store_id)
@@ -93,6 +99,11 @@ def update_store_settings(
         row.invoice_due_days = int(body.invoice_due_days)
     if body.invoice_due_months is not None:
         row.invoice_due_months = int(body.invoice_due_months)
+
+    if body.default_staff_id is not None:
+        row.default_staff_id = body.default_staff_id
+    if body.print_fields is not None:
+        row.print_fields = body.print_fields
 
     db.add(row)
     db.commit()

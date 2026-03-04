@@ -500,6 +500,19 @@ export function normalizeCar(raw: unknown): Car {
     expectedProfitRate: toNullableNumber(r.expected_profit_rate ?? r.expectedProfitRate),
     valuationAt: toNullableString(r.valuation_at ?? r.valuationAt),
 
+    ownerName: toNullableString(r.owner_name ?? r.ownerName),
+    ownerNameKana: toNullableString(r.owner_name_kana ?? r.ownerNameKana),
+    ownerPostalCode: toNullableString(r.owner_postal_code ?? r.ownerPostalCode),
+    ownerAddress1: toNullableString(r.owner_address1 ?? r.ownerAddress1),
+    ownerAddress2: toNullableString(r.owner_address2 ?? r.ownerAddress2),
+    ownerTel: toNullableString(r.owner_tel ?? r.ownerTel),
+
+    newOwnerName: toNullableString(r.new_owner_name ?? r.newOwnerName),
+    newOwnerNameKana: toNullableString(r.new_owner_name_kana ?? r.newOwnerNameKana),
+    newOwnerPostalCode: toNullableString(r.new_owner_postal_code ?? r.newOwnerPostalCode),
+    newOwnerAddress1: toNullableString(r.new_owner_address1 ?? r.newOwnerAddress1),
+    newOwnerAddress2: toNullableString(r.new_owner_address2 ?? r.newOwnerAddress2),
+
     createdAt: toNullableString(r.created_at ?? r.createdAt),
     updatedAt: toNullableString(r.updated_at ?? r.updatedAt),
   };

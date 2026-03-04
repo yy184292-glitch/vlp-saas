@@ -44,6 +44,20 @@ class CarBase(BaseModel):
     inspection_expiry: date | None = None
     insurance_expiry: date | None = None
 
+# --- 書類印刷用（委任状/譲渡証明） ---
+owner_name: str | None = None
+owner_name_kana: str | None = None
+owner_postal_code: str | None = None
+owner_address1: str | None = None
+owner_address2: str | None = None
+owner_tel: str | None = None
+
+new_owner_name: str | None = None
+new_owner_name_kana: str | None = None
+new_owner_postal_code: str | None = None
+new_owner_address1: str | None = None
+new_owner_address2: str | None = None
+
 
 class CarCreate(CarBase):
     pass
@@ -75,6 +89,20 @@ class CarUpdate(BaseModel):
     memo: str | None = None
     inspection_expiry: date | None = None
     insurance_expiry: date | None = None
+
+# --- 書類印刷用（委任状/譲渡証明） ---
+owner_name: str | None = None
+owner_name_kana: str | None = None
+owner_postal_code: str | None = None
+owner_address1: str | None = None
+owner_address2: str | None = None
+owner_tel: str | None = None
+
+new_owner_name: str | None = None
+new_owner_name_kana: str | None = None
+new_owner_postal_code: str | None = None
+new_owner_address1: str | None = None
+new_owner_address2: str | None = None
 
 
 class CarRead(CarBase):
