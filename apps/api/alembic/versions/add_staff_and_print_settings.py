@@ -51,21 +51,7 @@ def upgrade() -> None:
     op.add_column("store_settings", sa.Column("default_staff_id", postgresql.UUID(as_uuid=True), nullable=True))
     op.add_column("store_settings", sa.Column("print_fields", postgresql.JSONB(astext_type=sa.Text()), nullable=True))
 
-    # cars: owner and transferee fields for documents
-    op.add_column("cars", sa.Column("owner_name", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("owner_name_kana", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("owner_postal_code", sa.String(length=16), nullable=True))
-    op.add_column("cars", sa.Column("owner_address1", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("owner_address2", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("owner_tel", sa.String(length=32), nullable=True))
-
-    op.add_column("cars", sa.Column("new_owner_name", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("new_owner_name_kana", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("new_owner_postal_code", sa.String(length=16), nullable=True))
-    op.add_column("cars", sa.Column("new_owner_address1", sa.String(length=255), nullable=True))
-    op.add_column("cars", sa.Column("new_owner_address2", sa.String(length=255), nullable=True))
-
-
+   
 def downgrade() -> None:
     # cars
     for col in [
