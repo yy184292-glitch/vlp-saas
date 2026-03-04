@@ -17,3 +17,9 @@ python-multipart>=0.0.9
 alembic>=1.13
 httpx>=0.27
 google-cloud-vision
+
+# Rate limiting
+slowapi>=0.1.9
+
+# Error tracking
+sentry-sdk[fastapi]>=2.0

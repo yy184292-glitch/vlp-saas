@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import React, { useMemo, useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 
-import { login, registerOwner, setAccessToken, getAccessToken } from "@/lib/api";
+import { login, registerOwner } from "@/lib/api";
 
 type Mode = "login" | "signup";
 
@@ -24,6 +24,7 @@ export default function LoginPage() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [busy, setBusy] = useState(false);
+  const [checking, setChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // login
@@ -42,9 +43,14 @@ export default function LoginPage() {
   const [address2, setAddress2] = useState("");
   const [phone, setPhone] = useState("");
 
+  // すでに認証済みなら Dashboard へ（Cookie 確認はサーバーサイド経由）
   useEffect(() => {
-    const token = getAccessToken();
-    if (token) router.replace("/dashboard");
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => {
+        if (res.ok) router.replace("/dashboard");
+        else setChecking(false);
+      })
+      .catch(() => setChecking(false));
   }, [router]);
 
   const canSubmit = useMemo(() => {
@@ -67,13 +73,14 @@ export default function LoginPage() {
 
     try {
       if (mode === "login") {
-        const data = await login(email.trim(), password);
-        setAccessToken(data.access_token);
+        // login() が /api/auth/login を呼び httpOnly Cookie をセット
+        await login(email.trim(), password);
         router.replace("/dashboard");
         return;
       }
 
-      const data = await registerOwner({
+      // signup: 店舗作成 → オーナー登録 → ログイン（Cookie セット）
+      await registerOwner({
         store: {
           name: storeName.trim(),
           prefecture,
@@ -89,26 +96,19 @@ export default function LoginPage() {
         },
       });
 
-      // registerOwner が token を返す場合はそれを保存
-      const accessToken =
-        data && typeof data === "object" && "access_token" in (data as any) ? String((data as any).access_token || "") : "";
-
-      if (accessToken) {
-        setAccessToken(accessToken);
-        router.replace("/dashboard");
-        return;
-      }
-
-      // token を返さないAPIでも動くように、直後にログインして token を取得して保存
-      const loggedIn = await login(ownerEmail.trim(), ownerPassword);
-      setAccessToken(loggedIn.access_token);
+      // 登録後にログインして Cookie をセット
+      await login(ownerEmail.trim(), ownerPassword);
       router.replace("/dashboard");
-    } catch (err: any) {
-      setError(err?.message ?? "エラーが発生しました");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "エラーが発生しました");
     } finally {
       setBusy(false);
     }
   };
+
+  if (checking) {
+    return <div style={{ padding: 16, color: "#666" }}>読み込み中...</div>;
+  }
 
   return (
     <div style={{ maxWidth: 560, margin: "40px auto", padding: 16 }}>

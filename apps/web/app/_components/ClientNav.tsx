@@ -2,9 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { clearAccessToken, getAccessToken, getMe } from "@/lib/api";
+import { clearAccessToken } from "@/lib/api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Container } from "./layout/Container";
+
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { applyBgGrayClass, getBgGrayFromStorage, setBgGrayToStorage } from "./UiPreferences";
 
 type NavLinkProps = { href: string; label: string; exact?: boolean };
 
@@ -155,22 +159,46 @@ export default function ClientNav() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
   const [role, setRole] = useState<string>("staff");
+  const [bgGray, setBgGray] = useState(true);
 
   useEffect(() => {
-    const ok = !!getAccessToken();
-    setAuthed(ok);
-    if (!ok) return;
+    // デフォルト: ON（背景ライトグレー）
+    try {
+      const v = getBgGrayFromStorage();
+      setBgGray(v);
+      applyBgGrayClass(v);
+    } catch {
+      // ignore
+    }
+  }, []);
 
-    // 権限（role）取得：売上の表示/非表示に利用
-    getMe()
-      .then((me) => setRole(me.role))
-      .catch(() => setRole("staff"));
+  function onToggleBgGray(v: boolean) {
+    setBgGray(v);
+    setBgGrayToStorage(v);
+    applyBgGrayClass(v);
+  }
+
+
+  useEffect(() => {
+    // /api/auth/me で Cookie を検証し、ロールも取得
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => {
+        if (!res.ok) return null;
+        return res.json();
+      })
+      .then((me) => {
+        if (me) {
+          setAuthed(true);
+          setRole(me.role ?? "staff");
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const canViewSales = role === "admin" || role === "manager";
 
-  function onLogout() {
-    clearAccessToken();
+  async function onLogout() {
+    await clearAccessToken(); // httpOnly Cookie を削除
     setAuthed(false);
     router.push("/login");
   }
@@ -182,7 +210,7 @@ export default function ClientNav() {
       <Container size="wide" className="px-4 py-3">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <Link href="/dashboard" style={{ textDecoration: "none", color: "#111" }}>
-            <div style={{ fontWeight: 950, fontSize: 18, whiteSpace: "nowrap" }}>VLPsystem</div>
+            <div style={{ fontWeight: 950, fontSize: 18, whiteSpace: "nowrap" }}>VLP system</div>
           </Link>
 
           <div
@@ -193,6 +221,9 @@ export default function ClientNav() {
               gap: 8,
               flexWrap: "wrap",
               marginLeft: "auto",
+              overflowX: "auto",
+              WebkitOverflowScrolling: "touch",
+              paddingBottom: 2,
             }}
           >
             <NavLink href="/dashboard" label="メニュー" exact />
@@ -204,6 +235,14 @@ export default function ClientNav() {
 
             {canViewSales ? <ReportsMenu /> : null}
             {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
+
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: 6 }}>
+              <Label style={{ fontSize: 12, fontWeight: 800 }} htmlFor="bg-gray-toggle">
+                背景グレー
+              </Label>
+              <Switch id="bg-gray-toggle" checked={bgGray} onCheckedChange={onToggleBgGray} />
+            </div>
+
 
             <button
               onClick={onLogout}
@@ -219,7 +258,7 @@ export default function ClientNav() {
                 marginLeft: 6,
               }}
             >
-              Logout
+              ログアウト
             </button>
           </div>
         </div>

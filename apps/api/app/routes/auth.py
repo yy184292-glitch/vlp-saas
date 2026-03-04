@@ -4,11 +4,12 @@ from datetime import datetime, timedelta, timezone
 from typing import Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.limiter import limiter
 from app.db.session import get_db
 from app.models.user import User
 from app.models.store import StoreORM
@@ -98,7 +99,9 @@ def _utcnow() -> datetime:
 # ============================================================
 
 @router.post("/auth/login", response_model=LoginOut)
+@limiter.limit("10/minute")
 def login(
+    request: Request,
     body: LoginIn,
     db: Session = Depends(get_db),
 ) -> LoginOut:
@@ -135,7 +138,9 @@ def login(
 # ============================================================
 
 @router.post("/auth/register-owner", response_model=RegisterOut)
+@limiter.limit("5/minute")
 def register_owner(
+    request: Request,
     body: RegisterOwnerIn,
     db: Session = Depends(get_db),
 ) -> RegisterOut:
@@ -188,7 +193,9 @@ def register_owner(
 # ============================================================
 
 @router.post("/auth/register-invite", response_model=RegisterOut)
+@limiter.limit("5/minute")
 def register_with_invite(
+    request: Request,
     body: RegisterInviteIn,
     db: Session = Depends(get_db),
 ) -> RegisterOut:

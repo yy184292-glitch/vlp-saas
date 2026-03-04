@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getAccessToken, login, registerWithInvite, setAccessToken } from "@/lib/api";
+import { login, registerWithInvite } from "@/lib/api";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -16,9 +16,11 @@ export default function RegisterPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // すでに認証済みなら Dashboard へ
   useEffect(() => {
-    const token = getAccessToken();
-    if (token) router.replace("/dashboard");
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => { if (res.ok) router.replace("/dashboard"); })
+      .catch(() => {});
   }, [router]);
 
   async function onSubmit(e: React.FormEvent) {
@@ -29,26 +31,16 @@ export default function RegisterPage() {
     setBusy(true);
 
     try {
-      const res = await registerWithInvite({
+      // 招待コードでユーザー登録
+      await registerWithInvite({
         invite_code: inviteCode.trim(),
         name: name.trim(),
         email: email.trim(),
         password,
       });
 
-      // 1) APIがtokenを返すならそれを採用
-      const accessToken =
-        res && typeof res === "object" && "access_token" in (res as any) ? String((res as any).access_token || "") : "";
-
-      if (accessToken) {
-        setAccessToken(accessToken);
-        router.replace("/dashboard");
-        return;
-      }
-
-      // 2) tokenが無い場合はログインしてtoken取得（完全互換）
-      const loggedIn = await login(email.trim(), password);
-      setAccessToken(loggedIn.access_token);
+      // 登録後にログインして httpOnly Cookie をセット
+      await login(email.trim(), password);
       router.replace("/dashboard");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

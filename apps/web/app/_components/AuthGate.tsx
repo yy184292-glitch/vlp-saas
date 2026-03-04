@@ -1,54 +1,57 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { getAccessToken } from "@/lib/api";
 
-function safeHasToken(): boolean {
-  try {
-    const t = getAccessToken();
-    return !!t;
-  } catch {
-    return false;
-  }
-}
+const PUBLIC_PATHS = ["/login", "/register"];
 
 export default function AuthGate({ children }: { children: ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
 
-  const isLogin = useMemo(() => pathname === "/login", [pathname]);
+  const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
 
   const [status, setStatus] = useState<"checking" | "authed" | "redirecting">("checking");
-
-  // 連打防止
   const redirectingRef = useRef(false);
 
   useEffect(() => {
-    // login は素通し
-    if (isLogin) {
+    // 公開ページは認証不要
+    if (isPublic) {
       redirectingRef.current = false;
       setStatus("authed");
       return;
     }
 
-    const ok = safeHasToken();
-    if (ok) {
-      redirectingRef.current = false;
-      setStatus("authed");
-      return;
-    }
+    let cancelled = false;
 
-    // tokenなし → loginへ（ただし画面は消さずに “redirecting” 表示）
-    setStatus("redirecting");
+    // /api/auth/me で Cookie を検証（httpOnly Cookie はサーバーサイドのみ読める）
+    fetch("/api/auth/me", { cache: "no-store" })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setStatus("authed");
+        } else {
+          setStatus("redirecting");
+          if (!redirectingRef.current) {
+            redirectingRef.current = true;
+            router.replace("/login");
+          }
+        }
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setStatus("redirecting");
+        if (!redirectingRef.current) {
+          redirectingRef.current = true;
+          router.replace("/login");
+        }
+      });
 
-    if (!redirectingRef.current) {
-      redirectingRef.current = true;
-      // 余計な再レンダの瞬間を避けるため、同期的にreplace
-      router.replace("/login");
-    }
-  }, [isLogin, pathname, router]);
+    return () => {
+      cancelled = true;
+    };
+  }, [isPublic, pathname, router]);
 
   if (status === "checking") {
     return <div style={{ padding: 16, color: "#666" }}>Checking auth...</div>;

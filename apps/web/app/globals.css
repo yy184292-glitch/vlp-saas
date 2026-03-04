@@ -124,3 +124,15 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* VLP system: 背景ライトグレー（切替用） */
+.vlp-bg-gray {
+  /* ほぼ白のライトグレー */
+  --background: oklch(0.97 0 0);
+}
+
+/* モバイル: 横スクロール防止 */
+html, body {
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}

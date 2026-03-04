@@ -4,14 +4,18 @@ import os
 import logging
 import traceback
 
-from fastapi import FastAPI, status, Request
+import sentry_sdk
+from fastapi import FastAPI, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.core.limiter import limiter
 from app.core.settings import settings
 from app.db import engine
 from app.models.base import Base
@@ -34,6 +38,19 @@ from app.routes.export import router as export_router
 logger = logging.getLogger(__name__)
 
 # ============================================================
+# Sentry（SENTRY_DSN 環境変数があれば有効化）
+# ============================================================
+
+_sentry_dsn = os.getenv("SENTRY_DSN", "").strip()
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        traces_sample_rate=0.2,
+        environment=os.getenv("ENV", "production"),
+    )
+    logger.info("Sentry initialized.")
+
+# ============================================================
 # FastAPI app (必ず最初に作る)
 # ============================================================
 
@@ -42,6 +59,10 @@ app = FastAPI(
     version="1.0.0",
     redirect_slashes=False,
 )
+
+# rate limiter をアプリに登録
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # ============================================================
 # Exception handlers（app の後に定義する）
@@ -119,7 +140,6 @@ def ensure_updated_at_column():
 ensure_updated_at_column()
 
 
-
 # ============================================================
 # Routes
 # ============================================================
@@ -169,10 +189,9 @@ app.include_router(valuation_router, prefix=API_PREFIX)
 app.include_router(billing_router, prefix=API_PREFIX)
 app.include_router(stores_router, prefix=API_PREFIX)
 app.include_router(customers_router, prefix=API_PREFIX)
-app.include_router(inventory_router, prefix=API_PREFIX)  
-app.include_router(work_router, prefix=API_PREFIX)       
+app.include_router(inventory_router, prefix=API_PREFIX)
+app.include_router(work_router, prefix=API_PREFIX)
 app.include_router(reports_router, prefix=API_PREFIX)
 app.include_router(invites_router, prefix=API_PREFIX)
 app.include_router(calendar_router, prefix=API_PREFIX)
 app.include_router(export_router, prefix=API_PREFIX)
-

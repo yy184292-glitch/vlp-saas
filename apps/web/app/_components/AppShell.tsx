@@ -29,7 +29,7 @@ export default function AppShell({
       <ClientNav />
 
       {/* 下：背景で階層を作る（白一色防止） */}
-      <div className="min-h-[calc(100vh-56px)] bg-muted/30">
+      <div className="min-h-[calc(100vh-56px)] bg-background">
         <Container size={container} className="p-4">
           <div
             className={
