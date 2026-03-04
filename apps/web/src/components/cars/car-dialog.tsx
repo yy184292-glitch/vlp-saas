@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Car, CarUpsertInput } from "@/lib/schema/car";
+import type { Car, CarInput } from "@/lib/api";
 import { CarForm } from "./car-form";
+import type { CarUpsertInput } from "@/lib/schema/car";
 
 export function CarDialog({
   open,
@@ -14,10 +15,22 @@ export function CarDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  car: Car | null; // null なら新規
-  onSave: (input: CarUpsertInput, id?: string) => Promise<void>;
+  car: Car | null;
+  onSave: (input: CarInput, id?: string) => Promise<void>;
   saving?: boolean;
 }) {
+  // 新 Car 型 → CarForm が期待する CarUpsertInput へのマッピング
+  const defaultValues: Partial<CarUpsertInput> = car
+    ? {
+        stockNo: car.stockNo ?? "",
+        maker: car.maker ?? "",
+        model: car.model ?? "",
+        year: car.year ?? new Date().getFullYear(),
+        price: car.salePrice ?? 0,
+        status: (car.status as CarUpsertInput["status"]) ?? "available",
+      }
+    : {};
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
@@ -25,10 +38,19 @@ export function CarDialog({
           <DialogTitle>{car ? "車両編集" : "車両追加"}</DialogTitle>
         </DialogHeader>
         <CarForm
-          defaultValues={car ?? {}}
+          defaultValues={defaultValues}
           submitting={saving}
           onSubmit={async (v) => {
-            await onSave(v, car?.id);
+            // CarUpsertInput → CarInput へ変換
+            const input: CarInput = {
+              stock_no: v.stockNo,
+              maker: v.maker,
+              model: v.model,
+              year: v.year,
+              sale_price: v.price,
+              status: v.status,
+            };
+            await onSave(input, car?.id);
             onOpenChange(false);
           }}
         />

@@ -4,7 +4,7 @@ import * as React from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Car, CarUpsertInput } from "@/lib/schema/car";
+import type { Car, CarInput } from "@/lib/api";
 import { createCar, deleteCar, listCars, updateCar } from "@/lib/api/cars";
 import { isApiError } from "@/lib/api/errors";
 import { CarDialog } from "./car-dialog";
@@ -26,14 +26,21 @@ export function CarsTable() {
   const load = React.useCallback(async () => {
     setLoading(true);
     try {
-      const res = await listCars({
-        q: filters.q || undefined,
-        status: filters.status === "all" ? undefined : filters.status,
-        page: 1,
-        pageSize: 50,
+      const res = await listCars({ limit: 50, offset: 0 });
+      // クライアントサイドフィルタ
+      const q = filters.q.toLowerCase();
+      const filtered = res.items.filter((c) => {
+        const matchQ =
+          !q ||
+          (c.stockNo ?? "").toLowerCase().includes(q) ||
+          (c.maker ?? "").toLowerCase().includes(q) ||
+          (c.model ?? "").toLowerCase().includes(q);
+        const matchStatus =
+          filters.status === "all" || c.status === filters.status;
+        return matchQ && matchStatus;
       });
-      setItems(res.items);
-      setTotal(res.total);
+      setItems(filtered);
+      setTotal(filtered.length);
     } catch (e) {
       const msg = isApiError(e) ? e.message : "読み込みに失敗しました";
       toast({ title: "エラー", description: msg, variant: "destructive" });
@@ -46,7 +53,7 @@ export function CarsTable() {
     void load();
   }, [load]);
 
-  async function onSave(input: CarUpsertInput, id?: string) {
+  async function onSave(input: CarInput, id?: string) {
     setSaving(true);
     try {
       if (id) {
@@ -113,7 +120,7 @@ export function CarsTable() {
               <TableHead>メーカー</TableHead>
               <TableHead>車種</TableHead>
               <TableHead className="w-[100px]">年式</TableHead>
-              <TableHead className="w-[140px] text-right">価格</TableHead>
+              <TableHead className="w-[140px] text-right">販売価格</TableHead>
               <TableHead className="w-[120px]">状態</TableHead>
               <TableHead className="w-[120px] text-right">操作</TableHead>
             </TableRow>
@@ -132,7 +139,9 @@ export function CarsTable() {
                 <TableCell>{c.maker}</TableCell>
                 <TableCell>{c.model}</TableCell>
                 <TableCell>{c.year}</TableCell>
-                <TableCell className="text-right">{c.price.toLocaleString()}</TableCell>
+                <TableCell className="text-right">
+                  {c.salePrice != null ? c.salePrice.toLocaleString() : "-"}
+                </TableCell>
                 <TableCell>{renderStatus(c.status)}</TableCell>
                 <TableCell className="text-right">
                   <Button
@@ -171,7 +180,7 @@ export function CarsTable() {
   );
 }
 
-function renderStatus(status: Car["status"]) {
+function renderStatus(status: string | null) {
   switch (status) {
     case "available":
       return <Badge variant="secondary">在庫</Badge>;
@@ -179,5 +188,7 @@ function renderStatus(status: Car["status"]) {
       return <Badge>商談中</Badge>;
     case "sold":
       return <Badge variant="destructive">売約</Badge>;
+    default:
+      return status ? <Badge variant="outline">{status}</Badge> : null;
   }
 }
