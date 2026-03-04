@@ -1,12 +1,2 @@
-import * as Sentry from "@sentry/nextjs";
-
-const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
-
-if (dsn) {
-  Sentry.init({
-    dsn,
-    tracesSampleRate: 0.2,
-    enabled: process.env.NODE_ENV === "production",
-    sendDefaultPii: false,
-  });
-}
+// Sentry は一時的に無効化（@sentry/nextjs と Next.js 16 の peer dep 競合のため）
+// 再有効化する場合: npm install @sentry/nextjs --legacy-peer-deps してこのファイルを復元
