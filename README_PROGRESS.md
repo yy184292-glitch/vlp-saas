@@ -128,6 +128,11 @@
 |---|---|---|---|
 | 80 | `apps/web/app/(app)/work-orders/[id]/invoice/page.tsx` | 日本語化・日付YYYY年M月D日・発行番号自動採番・ステータス色分け・書類レイアウト・縞模様テーブル・合計右下大表示・A4印刷CSS | 0d92ef3 |
 | 81 | `apps/web/app/globals.css` | A4印刷CSS（@page A4・ナビ非表示・print-color-adjust） | 602e9c0 |
+| 82 | `apps/api/app/schemas/work_report.py` | InvoiceUpdate.status に paid / cancelled を追加 | be0e0d6 |
+| 83 | `apps/web/src/lib/api/workReports.ts` | InvoiceStatus 型に paid / cancelled を追加 | 8e62c3c |
+| 84 | `apps/web/src/lib/api/stores.ts` | Store 型・listStores・getStore API クライアント新規作成 | 985d428 |
+| 85 | `apps/web/src/lib/api/index.ts` | stores をバレル追加 | 9709753 |
+| 86 | `apps/web/app/(app)/work-orders/[id]/invoice/page.tsx` | 店舗情報（名前・住所・TEL）・宛名（ownerName）をAPIから取得して表示 | 097aad4 |
 
 ---
 
@@ -137,9 +142,6 @@
 |---|---|---|
 | 🟠 高 | **Render の Start Command を `./start.sh` に変更**（ダッシュボードで手動設定が必要） | Render Settings |
 | 🟠 高 | **動作確認**（ログイン・新規登録のエンドツーエンドテスト） | - |
-| 🟡 中 | 書類上部の店舗名・住所・電話番号を API（`/api/v1/stores`）から取得 | `invoice/page.tsx` |
-| 🟡 中 | 宛名（顧客名）を車両/顧客 API から取得 | `invoice/page.tsx` |
-| 🟡 中 | `InvoiceStatus` に `paid`/`cancelled` を追加 | `apps/api/app/schemas/work_report.py`, `workReports.ts` |
 | 🟡 中 | フロント Sentry 再有効化（互換バージョン確認後） | `package.json`, `sentry.*.config.ts` |
 | 🟡 中 | `src/components/cars/` 旧コンポーネント整理（未使用） | `car-form.tsx`, `car-filters.tsx` 等 |
 | 🟡 中 | テストカバレッジ追加 | `apps/api/tests/` |
