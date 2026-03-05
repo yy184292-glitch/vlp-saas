@@ -231,6 +231,7 @@ export default function ClientNav() {
             <NavLink href="/cars" label="車両一覧" />
             <NavLink href="/billing" label="見積・請求書" />
             <NavLink href="/masters" label="各種マスタ登録" />
+            <NavLink href="/import" label="CSVインポート" />
             <NavLink href="/sales/expenses" label="経費一覧" />
 
             {canViewSales ? <ReportsMenu /> : null}
