@@ -345,14 +345,13 @@ export default function ClientNav() {
             <div style={{ fontWeight: 950, fontSize: 18, whiteSpace: "nowrap" }}>VLP system</div>
           </Link>
 
+          {/* スクロール可能なナビリンク群 */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: "flex-end",
               gap: 8,
-              flexWrap: "wrap",
-              marginLeft: "auto",
+              flex: 1,
               overflowX: "auto",
               WebkitOverflowScrolling: "touch",
               paddingBottom: 2,
@@ -365,18 +364,20 @@ export default function ClientNav() {
             <NavLink href="/masters" label="各種マスタ登録" />
             <NavLink href="/import" label="CSVインポート" />
             <NavLink href="/sales/expenses" label="経費一覧" />
-
-            {canViewSales ? <ReportsMenu /> : null}
             {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
             {isSuperAdmin ? <NavLink href="/admin/licenses" label="管理者" /> : null}
+          </div>
 
-            <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: 6 }}>
+          {/* ドロップダウンを持つ要素はoverflow:autoの外に配置 */}
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            {canViewSales ? <ReportsMenu /> : null}
+
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <Label style={{ fontSize: 12, fontWeight: 800 }} htmlFor="bg-gray-toggle">
                 背景グレー
               </Label>
               <Switch id="bg-gray-toggle" checked={bgGray} onCheckedChange={onToggleBgGray} />
             </div>
-
 
             <UserMenu onLogout={onLogout} />
           </div>
