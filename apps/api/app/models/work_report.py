@@ -31,12 +31,8 @@ class WorkReportORM(Base):
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
 
-    instruction_id = Column(
-        UUID(as_uuid=True),
-        ForeignKey("instruction_orders.id", ondelete="SET NULL"),
-        nullable=True,
-        index=True,
-    )
+    # No FK constraint on instruction_id to avoid hard dependency on instruction_orders
+    instruction_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     car_id = Column(
         UUID(as_uuid=True),
         ForeignKey("cars.id", ondelete="SET NULL"),

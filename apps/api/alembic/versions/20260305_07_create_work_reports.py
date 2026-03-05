@@ -20,13 +20,9 @@ def upgrade() -> None:
     op.create_table(
         "work_reports",
         sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "instruction_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("instruction_orders.id", ondelete="SET NULL"),
-            nullable=True,
-            index=True,
-        ),
+        # instruction_id: nullable UUID without FK constraint to avoid dependency
+        # on instruction_orders table existing at migration time
+        sa.Column("instruction_id", UUID(as_uuid=True), nullable=True, index=True),
         sa.Column(
             "car_id",
             UUID(as_uuid=True),
