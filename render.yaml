@@ -4,7 +4,7 @@ services:
     name: vlp-api
     runtime: python
     rootDir: apps/api
-    buildCommand: pip install -r requirements.txt
+    buildCommand: pip install -r requirements.txt && chmod +x start.sh
     startCommand: ./start.sh   # alembic upgrade head → uvicorn app.main:app
     envVars:
       - key: DATABASE_URL
