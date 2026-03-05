@@ -34,6 +34,7 @@ from app.routes.reports import router as reports_router
 from app.routes.invites import router as invites_router
 from app.routes.calendar import router as calendar_router
 from app.routes.export import router as export_router
+from app.routes.maintenance_presets import router as maintenance_presets_router
 
 logger = logging.getLogger(__name__)
 
@@ -195,3 +196,4 @@ app.include_router(reports_router, prefix=API_PREFIX)
 app.include_router(invites_router, prefix=API_PREFIX)
 app.include_router(calendar_router, prefix=API_PREFIX)
 app.include_router(export_router, prefix=API_PREFIX)
+app.include_router(maintenance_presets_router, prefix=API_PREFIX)
