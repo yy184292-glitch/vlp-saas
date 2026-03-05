@@ -20,6 +20,7 @@ class StoreORM(Base):
 
     name = Column(String(255), nullable=False)
 
+    prefecture = Column(String(32), nullable=True)
     postal_code = Column(String(16), nullable=True)
     address1 = Column(String(255), nullable=True)
     address2 = Column(String(255), nullable=True)
