@@ -61,6 +61,7 @@ function ReportsMenu() {
   const items: MenuItem[] = useMemo(
     () => [
       { href: "/sales/dashboard", label: "ダッシュボード" },
+      { href: "/sales/cars", label: "車両売上・利益" },
       { href: "/sales/daily", label: "日次" },
       { href: "/sales/monthly", label: "月次" },
       { href: "/sales/by-work", label: "作業別" },
