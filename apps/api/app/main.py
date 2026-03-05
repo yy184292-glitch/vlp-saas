@@ -36,6 +36,7 @@ from app.routes.calendar import router as calendar_router
 from app.routes.export import router as export_router
 from app.routes.work_masters import router as work_masters_router
 from app.routes.work_reports import router as work_reports_router
+from app.routes.import_csv import router as import_csv_router
 
 logger = logging.getLogger(__name__)
 
@@ -199,3 +200,4 @@ app.include_router(calendar_router, prefix=API_PREFIX)
 app.include_router(export_router, prefix=API_PREFIX)
 app.include_router(work_masters_router, prefix=API_PREFIX)
 app.include_router(work_reports_router, prefix=API_PREFIX)
+app.include_router(import_csv_router, prefix=API_PREFIX)
