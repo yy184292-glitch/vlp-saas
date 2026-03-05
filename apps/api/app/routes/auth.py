@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Annotated, Optional
+from typing import Optional
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Body, Depends, HTTPException, Request
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -19,6 +19,21 @@ from app.core.security import (
     create_access_token,
     get_password_hash,
 )
+
+
+async def _parse_body(request: Request, model: type):
+    """
+    slowapi デコレータが Annotated[..., Body()] を隠してしまう問題を回避するため、
+    リクエストボディを直接 request.json() で取得して Pydantic でバリデートする。
+    """
+    try:
+        raw = await request.json()
+    except Exception:
+        raise HTTPException(status_code=422, detail="Invalid JSON body")
+    try:
+        return model.model_validate(raw)
+    except ValidationError as e:
+        raise HTTPException(status_code=422, detail=e.errors())
 
 router = APIRouter(tags=["auth"])
 
@@ -100,11 +115,12 @@ def _utcnow() -> datetime:
 
 @router.post("/auth/login", response_model=LoginOut)
 @limiter.limit("10/minute")
-def login(
+async def login(
     request: Request,
-    body: Annotated[LoginIn, Body()],
     db: Session = Depends(get_db),
 ) -> LoginOut:
+    body: LoginIn = await _parse_body(request, LoginIn)
+
     user = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -139,11 +155,11 @@ def login(
 
 @router.post("/auth/register-owner", response_model=RegisterOut)
 @limiter.limit("5/minute")
-def register_owner(
+async def register_owner(
     request: Request,
-    body: Annotated[RegisterOwnerIn, Body()],
     db: Session = Depends(get_db),
 ) -> RegisterOut:
+    body: RegisterOwnerIn = await _parse_body(request, RegisterOwnerIn)
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
@@ -189,11 +205,11 @@ def register_owner(
 
 @router.post("/auth/register-invite", response_model=RegisterOut)
 @limiter.limit("5/minute")
-def register_with_invite(
+async def register_with_invite(
     request: Request,
-    body: Annotated[RegisterInviteIn, Body()],
     db: Session = Depends(get_db),
 ) -> RegisterOut:
+    body: RegisterInviteIn = await _parse_body(request, RegisterInviteIn)
     existing = db.execute(select(User).where(User.email == body.email)).scalar_one_or_none()
     if existing:
         raise HTTPException(status_code=400, detail="Email already exists")
