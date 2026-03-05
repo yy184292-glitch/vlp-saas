@@ -175,6 +175,11 @@
 **根本原因:** migration 20260305_08 内で passlib ハッシュ生成が except に落ちて `password_hash = ""` で INSERT → ログイン時 `not stored_hash` が True になり 401。
 **修正内容:** seed スクリプトが起動毎に空ハッシュ/不正ロールを自動修復する。
 
+| 109 | `apps/api/alembic/versions/20260305_09_users_store_id_nullable.py` | `users.store_id` の NOT NULL 制約を削除（superadmin は store_id = NULL） | b27c2d6 |
+
+**根本原因2:** `users.store_id` に NOT NULL 制約が残存しており superadmin の NULL INSERT が失敗。
+**修正内容:** idempotent マイグレーションで `ALTER TABLE users ALTER COLUMN store_id DROP NOT NULL`。
+
 ---
 
 ## 未対応 / 今後の課題
