@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy import inspect
 from sqlalchemy.dialects.postgresql import UUID
 
 revision = "20260305_07"
@@ -17,121 +18,137 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.create_table(
-        "work_reports",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        # instruction_id: nullable UUID without FK constraint to avoid dependency
-        # on instruction_orders table existing at migration time
-        sa.Column("instruction_id", UUID(as_uuid=True), nullable=True, index=True),
-        sa.Column(
-            "car_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("cars.id", ondelete="SET NULL"),
-            nullable=True,
-            index=True,
-        ),
-        sa.Column(
-            "store_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("stores.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        ),
-        sa.Column("title", sa.String(255), nullable=True),
-        sa.Column("vehicle_category", sa.String(100), nullable=True),
-        sa.Column("status", sa.String(50), nullable=False, server_default="in_progress"),
-        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("reported_by", sa.String(255), nullable=True),
-        sa.Column("notes", sa.Text, nullable=True),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-    )
+    bind = op.get_bind()
+    existing = set(inspect(bind).get_table_names())
 
-    op.create_table(
-        "work_report_items",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "report_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("work_reports.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        ),
-        sa.Column(
-            "work_master_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("work_masters.id", ondelete="SET NULL"),
-            nullable=True,
-        ),
-        sa.Column("item_name", sa.String(255), nullable=False),
-        sa.Column("item_type", sa.String(20), nullable=False, server_default="work"),
-        sa.Column("quantity", sa.Numeric(10, 2), nullable=False, server_default="1"),
-        sa.Column("unit_price", sa.Numeric(12, 2), nullable=False, server_default="0"),
-        sa.Column("duration_minutes", sa.Integer, nullable=True),
-        sa.Column("is_checked", sa.Boolean, nullable=False, server_default="false"),
-        sa.Column("checked_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("memo", sa.Text, nullable=True),
-        sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-    )
+    if "work_reports" not in existing:
+        op.create_table(
+            "work_reports",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True),
+            # instruction_id: no FK constraint to avoid dependency on
+            # instruction_orders table existing at migration time
+            sa.Column("instruction_id", UUID(as_uuid=True), nullable=True, index=True),
+            sa.Column(
+                "car_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("cars.id", ondelete="SET NULL"),
+                nullable=True,
+                index=True,
+            ),
+            sa.Column(
+                "store_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("stores.id", ondelete="CASCADE"),
+                nullable=False,
+                index=True,
+            ),
+            sa.Column("title", sa.String(255), nullable=True),
+            sa.Column("vehicle_category", sa.String(100), nullable=True),
+            sa.Column("status", sa.String(50), nullable=False, server_default="in_progress"),
+            sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("reported_by", sa.String(255), nullable=True),
+            sa.Column("notes", sa.Text, nullable=True),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+        )
 
-    op.create_table(
-        "invoices",
-        sa.Column("id", UUID(as_uuid=True), primary_key=True),
-        sa.Column(
-            "report_id",
-            UUID(as_uuid=True),
-            sa.ForeignKey("work_reports.id", ondelete="CASCADE"),
-            nullable=False,
-            index=True,
-        ),
-        sa.Column("invoice_type", sa.String(20), nullable=False, server_default="estimate"),
-        sa.Column("issue_date", sa.Date, nullable=False),
-        sa.Column("due_date", sa.Date, nullable=True),
-        sa.Column("subtotal", sa.Numeric(12, 2), nullable=False, server_default="0"),
-        sa.Column("tax", sa.Numeric(12, 2), nullable=False, server_default="0"),
-        sa.Column("total", sa.Numeric(12, 2), nullable=False, server_default="0"),
-        sa.Column("notes", sa.Text, nullable=True),
-        sa.Column("status", sa.String(20), nullable=False, server_default="draft"),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.func.now(),
-        ),
-    )
+    if "work_report_items" not in existing:
+        op.create_table(
+            "work_report_items",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True),
+            sa.Column(
+                "report_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("work_reports.id", ondelete="CASCADE"),
+                nullable=False,
+                index=True,
+            ),
+            sa.Column(
+                "work_master_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("work_masters.id", ondelete="SET NULL"),
+                nullable=True,
+            ),
+            sa.Column("item_name", sa.String(255), nullable=False),
+            sa.Column("item_type", sa.String(20), nullable=False, server_default="work"),
+            sa.Column("quantity", sa.Numeric(10, 2), nullable=False, server_default="1"),
+            sa.Column("unit_price", sa.Numeric(12, 2), nullable=False, server_default="0"),
+            sa.Column("duration_minutes", sa.Integer, nullable=True),
+            sa.Column("is_checked", sa.Boolean, nullable=False, server_default="false"),
+            sa.Column("checked_at", sa.DateTime(timezone=True), nullable=True),
+            sa.Column("memo", sa.Text, nullable=True),
+            sa.Column("sort_order", sa.Integer, nullable=False, server_default="0"),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+        )
 
-    op.create_index("ix_work_reports_store_status", "work_reports", ["store_id", "status"])
-    op.create_index(
-        "ix_work_report_items_report_type", "work_report_items", ["report_id", "item_type"]
-    )
+    if "invoices" not in existing:
+        op.create_table(
+            "invoices",
+            sa.Column("id", UUID(as_uuid=True), primary_key=True),
+            sa.Column(
+                "report_id",
+                UUID(as_uuid=True),
+                sa.ForeignKey("work_reports.id", ondelete="CASCADE"),
+                nullable=False,
+                index=True,
+            ),
+            sa.Column("invoice_type", sa.String(20), nullable=False, server_default="estimate"),
+            sa.Column("issue_date", sa.Date, nullable=False),
+            sa.Column("due_date", sa.Date, nullable=True),
+            sa.Column("subtotal", sa.Numeric(12, 2), nullable=False, server_default="0"),
+            sa.Column("tax", sa.Numeric(12, 2), nullable=False, server_default="0"),
+            sa.Column("total", sa.Numeric(12, 2), nullable=False, server_default="0"),
+            sa.Column("notes", sa.Text, nullable=True),
+            sa.Column("status", sa.String(20), nullable=False, server_default="draft"),
+            sa.Column(
+                "created_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+            sa.Column(
+                "updated_at",
+                sa.DateTime(timezone=True),
+                nullable=False,
+                server_default=sa.func.now(),
+            ),
+        )
+
+    # Create indexes if they don't exist yet
+    existing_idx = set()
+    for tbl in ("work_reports", "work_report_items"):
+        if tbl in existing or tbl in set(inspect(bind).get_table_names()):
+            for idx in inspect(bind).get_indexes(tbl):
+                existing_idx.add(idx["name"])
+
+    if "ix_work_reports_store_status" not in existing_idx:
+        op.create_index("ix_work_reports_store_status", "work_reports", ["store_id", "status"])
+
+    if "ix_work_report_items_report_type" not in existing_idx:
+        op.create_index(
+            "ix_work_report_items_report_type", "work_report_items", ["report_id", "item_type"]
+        )
 
 
 def downgrade() -> None:
