@@ -196,7 +196,8 @@ export default function ClientNav() {
       .catch(() => {});
   }, []);
 
-  const canViewSales = role === "admin" || role === "manager";
+  const canViewSales = role === "admin" || role === "manager" || role === "superadmin";
+  const isSuperAdmin = role === "superadmin";
 
   async function onLogout() {
     await clearAccessToken(); // httpOnly Cookie を削除
@@ -237,6 +238,7 @@ export default function ClientNav() {
 
             {canViewSales ? <ReportsMenu /> : null}
             {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
+            {isSuperAdmin ? <NavLink href="/admin/licenses" label="管理者" /> : null}
 
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginLeft: 6 }}>
               <Label style={{ fontSize: 12, fontWeight: 800 }} htmlFor="bg-gray-toggle">
