@@ -96,6 +96,19 @@
 | 59 | `apps/web/app/(app)/masters/presets/page.tsx` | 整備プリセット管理ページ | 54adeae |
 | 60 | `apps/web/app/(app)/masters/page.tsx` | マスタハブに整備プリセットリンク追加 | 55dc2c3 |
 
+### Phase 6: 作業マスタ統合（maintenance_presets → work_masters）
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 61 | `apps/api/alembic/versions/20260305_06_create_work_masters.py` | `work_masters` + `work_master_rates` テーブル作成・62件seed・maintenance_presetsドロップ | c00b47b |
+| 62 | `apps/api/app/models/work_master.py` | WorkMasterORM・WorkMasterRateORM モデル（relationship/cascade） | 3ef466d |
+| 63 | `apps/api/app/schemas/work_master.py` | Pydantic スキーマ (Out/ForVehicle/Create/Update) + WORK_CATEGORIES/VEHICLE_CATEGORIES | b220581 |
+| 64 | `apps/api/app/routes/work_masters.py` | CRUD API（list/by-vehicle-category/get/create/update/delete） ルート順序注意 | fafa8ef |
+| 65 | `apps/api/app/main.py` | maintenance_presetsルーター → work_mastersルーターに差し替え | 7f319cd |
+| 66 | `apps/web/src/lib/api/workMasters.ts` + `index.ts` | フロント API クライアント・型定義・定数 | 4ab0a28 |
+| 67 | `apps/web/app/(app)/masters/work/page.tsx` | 作業マスタ管理ページ（カテゴリグルーピング・展開行・車種別工賃ダイアログ） | efb0805 |
+| 68 | `apps/web/app/(app)/masters/presets/page.tsx` | /masters/work へリダイレクト（旧整備プリセットページ） | 19d7607 |
+| 69 | `apps/web/app/(app)/masters/page.tsx` | マスタハブから整備プリセットカード削除・作業マスタ説明更新 | 283c5c2 |
+
 ---
 
 ## 未対応 / 今後の課題
