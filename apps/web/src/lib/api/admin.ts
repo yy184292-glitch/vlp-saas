@@ -69,3 +69,16 @@ export async function updateLicense(id: string, input: LicenseUpdateInput): Prom
 export async function suspendLicense(id: string): Promise<void> {
   await apiFetch<void>(`/api/v1/admin/licenses/${id}`, { method: "DELETE" });
 }
+
+export interface LicenseExtendInput {
+  days?: number;
+  extend_to?: string; // "YYYY-MM-DD"
+}
+
+export async function extendLicense(id: string, input: LicenseExtendInput): Promise<License> {
+  return apiFetch<License>(`/api/v1/admin/licenses/${id}/extend`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
