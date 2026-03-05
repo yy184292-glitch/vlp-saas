@@ -104,7 +104,7 @@ def update_preset(
     return MaintenancePresetOut.model_validate(preset)
 
 
-@router.delete("/{preset_id}", status_code=204)
+@router.delete("/{preset_id}", status_code=204, response_model=None)
 def delete_preset(
     preset_id: uuid.UUID,
     db: Session = Depends(get_db),
