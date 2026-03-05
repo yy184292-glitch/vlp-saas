@@ -21,6 +21,12 @@ async function proxy(request: NextRequest): Promise<NextResponse> {
   // host ヘッダーは転送しない（FastAPI が誤認識するため）
   headers.delete("host");
 
+  // middleware のヘッダー注入に依存せず、httpOnly Cookie から直接 Authorization を注入
+  const token = request.cookies.get("access_token")?.value;
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
   const init: RequestInit = {
     method: request.method,
     headers,
