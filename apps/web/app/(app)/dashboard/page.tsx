@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { clearAccessToken, getAccessToken, getMe } from "@/lib/api";
+import { clearAccessToken, getMe } from "@/lib/api";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -99,23 +99,19 @@ export default function DashboardPage() {
   const [role, setRole] = React.useState<string>("staff");
 
   React.useEffect(() => {
-    if (!getAccessToken()) {
-      router.replace("/login");
-      return;
-    }
-
     getMe()
       .then((me) => setRole(me.role))
       .catch(() => setRole("staff"));
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const canViewSales = role === "admin" || role === "manager";
   const visibleMenu = React.useMemo(() => {
     return MENU.filter((m) => !m.requireSalesPermission || canViewSales);
   }, [canViewSales]);
 
-  const logout = React.useCallback(() => {
-    clearAccessToken();
+  const logout = React.useCallback(async () => {
+    await clearAccessToken();
     router.replace("/login");
   }, [router]);
 
