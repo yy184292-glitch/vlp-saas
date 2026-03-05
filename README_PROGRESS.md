@@ -144,6 +144,28 @@
 | 91 | `apps/web/app/(app)/import/page.tsx` | /import ページ（車両/顧客タブ・D&D・プレビュー・バリデーション色分け・実行） | d7c866e |
 | 92 | `apps/web/app/_components/ClientNav.tsx` | ナビに「CSVインポート」リンク追加 | 17a6181 |
 
+### Phase 10: 車両売上・利益管理
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 93 | `apps/api/app/routes/sales.py` | 車両ベース売上API（summary/monthly/by-car/by-staff/inventory-stats） | f53bed5 |
+| 94 | `apps/api/app/main.py` | sales ルーター登録 | 29c91a6 |
+| 95 | `apps/web/src/lib/api/sales.ts` + `index.ts` | フロント API クライアント・型定義 | 5f37ffe |
+| 96 | `apps/web/app/(app)/sales/cars/page.tsx` | 車両売上ページ（月別棒グラフ・MoM比較・車両別/スタッフ別テーブル・在庫統計） | fd83f9e |
+| 97 | `apps/web/app/_components/ClientNav.tsx` | 売上レポートメニューに「車両売上・利益」リンク追加 | 9f2974d |
+
+### Phase 11: ライセンス・契約管理
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 98 | `apps/api/alembic/versions/20260305_08_create_licenses.py` | licenses テーブル作成 + superadmin ユーザー seed | 8d9613e |
+| 99 | `apps/api/app/models/license.py` | LicenseORM モデル | 431be8f |
+| 100 | `apps/api/app/schemas/license.py` | Pydantic スキーマ (Create/Update/Out) | feabef3 |
+| 101 | `apps/api/app/routes/admin.py` | 管理者API（ライセンス一覧/発行/編集/停止） | 88a8abd |
+| 102 | `apps/api/app/main.py` | admin ルーター登録 | cbe0c45 |
+| 103 | `apps/web/src/lib/api/admin.ts` + `index.ts` | フロント API クライアント | 7e97509 |
+| 104 | `apps/web/app/(app)/admin/licenses/page.tsx` | 契約店舗一覧ページ（フィルタ・ステータス色分け・編集ダイアログ・停止） | 7ebd8d7 |
+| 105 | `apps/web/app/(app)/admin/licenses/new/page.tsx` | ライセンス発行ページ（店舗＋ユーザー作成・初期PW表示） | 7ebd8d7 |
+| 106 | `apps/web/app/_components/ClientNav.tsx` | superadmin に「管理者」リンク追加 | 091ef67 |
+
 ---
 
 ## 未対応 / 今後の課題
