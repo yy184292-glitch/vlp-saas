@@ -59,7 +59,10 @@ def get_current_user(
     if creds is None or not creds.credentials:
         raise _unauthorized("Not authenticated")
 
-    decoded = decode_access_token(creds.credentials)
+    try:
+        decoded = decode_access_token(creds.credentials)
+    except ValueError:
+        raise _unauthorized()
     sub = _extract_sub(decoded)
     if not sub:
         raise _unauthorized()
