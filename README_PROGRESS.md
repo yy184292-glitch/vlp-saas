@@ -182,6 +182,17 @@
 
 ---
 
+### Phase 12: パスワード変更・ライセンス延長
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 110 | `apps/api/app/routes/users.py` | PUT /api/v1/users/me/password エンドポイント追加（bcrypt検証・ハッシュ更新） | 3b72a15 |
+| 111 | `apps/api/app/routes/admin.py` | PUT /api/v1/admin/licenses/{id}/extend エンドポイント追加（days / extend_to） | 2b438c5 |
+| 112 | `apps/web/src/lib/api/admin.ts` | extendLicense API 関数追加 | acb1b63 |
+| 113 | `apps/web/app/(app)/settings/page.tsx` | /settings ページ（プロフィール確認・パスワード変更リンク・店舗情報） | 7d7a144 |
+| 114 | `apps/web/app/(app)/settings/password/page.tsx` | /settings/password ページ（バリデーション付きパスワード変更フォーム） | 682d4e2 |
+| 115 | `apps/web/app/(app)/admin/licenses/page.tsx` | EditDialog に有効期限延長セクション追加（+30日/+90日/+1年・カスタム日付） | 3cd746f |
+| 116 | `apps/web/app/_components/ClientNav.tsx` | ログアウトボタン → UserMenu ドロップダウン（設定・パスワード変更・ログアウト） | 2a5cd03 |
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
