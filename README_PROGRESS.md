@@ -79,6 +79,10 @@
 | 46 | `apps/api/alembic/versions/20260305_02_...` | `stores.prefecture` カラム追加マイグレーション | 5c488bc |
 | 47 | `apps/api/app/models/user.py` + `routes/auth.py` + `routes/users.py` + `auth.ts` | `users.name` フィールド追加、登録ルート修正、`/me` に name 追加 | 6378a70 |
 | 48 | `apps/api/alembic/versions/20260305_03_...` | `users.name` カラム追加マイグレーション | 9ca3514 |
+| 49 | `apps/api/app/routes/auth.py` | slowapi + FastAPI body injection 競合を `request.json()` 方式で完全回避 | 5f2141c |
+| 50 | `render.yaml` | Render IaC 設定追加 | 978022c |
+| 51 | `apps/web/app/api/auth/me/route.ts` | FastAPI 5xx → 503 変換（401 に変換していたためリダイレクトループ発生） | 40d2471 |
+| 52 | `apps/web/app/_components/AuthGate.tsx` | 503/ネットワークエラー時に自動リトライ追加、即時リダイレクト抑制 | 54d1584 |
 
 ---
 
@@ -86,7 +90,8 @@
 
 | 優先度 | 内容 | 対象ファイル |
 |---|---|---|
-| 🟠 高 | **Render デプロイ後に動作確認**（ログイン・新規登録のエンドツーエンドテスト） | - |
+| 🟠 高 | **Render の Start Command を `./start.sh` に変更**（ダッシュボードで手動設定が必要） | Render Settings |
+| 🟠 高 | **動作確認**（ログイン・新規登録のエンドツーエンドテスト） | - |
 | 🟡 中 | フロント Sentry 再有効化（互換バージョン確認後） | `package.json`, `sentry.*.config.ts` |
 | 🟡 中 | `src/components/cars/` 旧コンポーネント整理（未使用） | `car-form.tsx`, `car-filters.tsx` 等 |
 | 🟡 中 | テストカバレッジ追加 | `apps/api/tests/` |
