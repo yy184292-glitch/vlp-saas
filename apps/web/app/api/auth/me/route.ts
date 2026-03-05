@@ -32,7 +32,10 @@ export async function GET(request: NextRequest) {
         console.error(`[/api/auth/me] FastAPI returned ${apiRes.status}`);
         return NextResponse.json({ detail: "APIサービスが応答できませんでした" }, { status: 503 });
       }
-      return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+      // 401/403: 期限切れトークンを含む Cookie をクリアしてログインへ誘導
+      const res = NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
+      res.cookies.set("access_token", "", { httpOnly: true, path: "/", maxAge: 0 });
+      return res;
     }
 
     const data = await apiRes.json();
