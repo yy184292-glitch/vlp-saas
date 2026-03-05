@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from sqlalchemy import String, DateTime, Boolean, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -33,15 +34,15 @@ class User(Base):
         default=True,
     )
 
-    # ✅ 追加：DBにあるのにモデルに無かった（NOT NULL想定）
-    store_id: Mapped[uuid.UUID] = mapped_column(
+    # nullable=True: system dummy user (00000000-...) has no store
+    # All real users always have store_id set at registration time.
+    store_id: Mapped[Optional[uuid.UUID]] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("stores.id", ondelete="CASCADE"),
-        nullable=False,
+        nullable=True,
         index=True,
     )
 
-    # ✅ 追加：DBに追加済みの role
     role: Mapped[str] = mapped_column(
         String(50),
         nullable=False,
