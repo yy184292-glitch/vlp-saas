@@ -1,0 +1,36 @@
+services:
+  # ── FastAPI バックエンド ──────────────────────────────────────
+  - type: web
+    name: vlp-api
+    runtime: python
+    rootDir: apps/api
+    buildCommand: pip install -r requirements.txt
+    startCommand: ./start.sh   # alembic upgrade head → uvicorn app.main:app
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: vlp-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true   # 初回デプロイ時に自動生成（変更不要）
+      - key: SENTRY_DSN
+        sync: false           # Render ダッシュボードで手動設定（任意）
+      - key: FRONTEND_URL
+        sync: false           # 例: https://vlp-web.onrender.com
+
+  # ── Next.js フロントエンド ────────────────────────────────────
+  - type: web
+    name: vlp-web
+    runtime: node
+    rootDir: apps/web
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: API_BASE_URL
+        sync: false           # 例: https://vlp-api.onrender.com
+      - key: NEXT_PUBLIC_APP_URL
+        sync: false           # 例: https://vlp-web.onrender.com（CSRF 用）
+
+databases:
+  - name: vlp-db
+    plan: free
