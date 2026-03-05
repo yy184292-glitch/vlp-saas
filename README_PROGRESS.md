@@ -166,6 +166,15 @@
 | 105 | `apps/web/app/(app)/admin/licenses/new/page.tsx` | ライセンス発行ページ（店舗＋ユーザー作成・初期PW表示） | 7ebd8d7 |
 | 106 | `apps/web/app/_components/ClientNav.tsx` | superadmin に「管理者」リンク追加 | 091ef67 |
 
+### Phase 11 バグ修正: superadmin ログイン 401
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 107 | `apps/api/seed_superadmin.py` | 冪等 superadmin シードスクリプト（passlib を確実に使い CREATE/UPDATE） | a50e02f |
+| 108 | `apps/api/start.sh` | マイグレーション後に seed_superadmin.py を実行するよう追加 | 7d8e06f |
+
+**根本原因:** migration 20260305_08 内で passlib ハッシュ生成が except に落ちて `password_hash = ""` で INSERT → ログイン時 `not stored_hash` が True になり 401。
+**修正内容:** seed スクリプトが起動毎に空ハッシュ/不正ロールを自動修復する。
+
 ---
 
 ## 未対応 / 今後の課題
