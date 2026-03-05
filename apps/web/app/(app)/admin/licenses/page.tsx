@@ -6,6 +6,7 @@ import {
   listLicenses,
   updateLicense,
   suspendLicense,
+  extendLicense,
   type License,
   type LicensePlan,
   type LicenseStatus,
@@ -13,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Plus, RefreshCw, Pencil, Ban } from "lucide-react";
+import { Plus, RefreshCw, Pencil, Ban, CalendarPlus } from "lucide-react";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,13 @@ function EditDialog({
   const [saving, setSaving] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
+  // Extend section
+  const [extendDays, setExtendDays] = React.useState<string>("");
+  const [extendTo, setExtendTo] = React.useState<string>("");
+  const [extending, setExtending] = React.useState(false);
+  const [extendSuccess, setExtendSuccess] = React.useState<string | null>(null);
+  const [extendError, setExtendError] = React.useState<string | null>(null);
+
   async function save() {
     setSaving(true);
     setError(null);
@@ -107,8 +115,30 @@ function EditDialog({
     }
   }
 
+  async function handleExtend(days?: number, to?: string) {
+    setExtending(true);
+    setExtendError(null);
+    setExtendSuccess(null);
+    try {
+      const updated = await extendLicense(license.id, days !== undefined ? { days } : { extend_to: to });
+      // Update local periodEnd display
+      if (updated.current_period_end) {
+        const d = new Date(updated.current_period_end);
+        setPeriodEnd(updated.current_period_end.substring(0, 10));
+        setExtendSuccess(
+          `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日まで延長しました`
+        );
+      }
+      onSaved(updated);
+    } catch (e: any) {
+      setExtendError(e?.message ?? "延長に失敗しました");
+    } finally {
+      setExtending(false);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 overflow-y-auto py-4">
       <div className="w-full max-w-md rounded-2xl border bg-white shadow-xl p-6 space-y-5 mx-4">
         <h2 className="text-lg font-bold">ライセンス編集 — {license.store_name}</h2>
 
@@ -164,6 +194,56 @@ function EditDialog({
               rows={2}
               className="w-full rounded-md border bg-background px-3 py-2 text-sm shadow-sm"
             />
+          </div>
+        </div>
+
+        {/* ── 有効期限延長 ─────────────────────────────── */}
+        <div className="border-t pt-4 space-y-3">
+          <p className="flex items-center gap-1.5 text-sm font-semibold">
+            <CalendarPlus className="h-4 w-4" />
+            有効期限延長
+          </p>
+
+          {extendSuccess && (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700">
+              {extendSuccess}
+            </div>
+          )}
+          {extendError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+              {extendError}
+            </div>
+          )}
+
+          <div className="flex gap-2 flex-wrap">
+            {([30, 90, 365] as const).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => handleExtend(d)}
+                disabled={extending}
+                className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold hover:bg-slate-100 disabled:opacity-50"
+              >
+                +{d === 365 ? "1年" : `${d}日`}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2">
+            <input
+              type="date"
+              value={extendTo}
+              onChange={(e) => setExtendTo(e.target.value)}
+              className="h-9 flex-1 rounded-md border bg-background px-3 text-sm shadow-sm"
+            />
+            <button
+              type="button"
+              onClick={() => extendTo && handleExtend(undefined, extendTo)}
+              disabled={extending || !extendTo}
+              className="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 disabled:opacity-50"
+            >
+              延長する
+            </button>
           </div>
         </div>
 
