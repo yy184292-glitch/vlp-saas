@@ -25,15 +25,20 @@ export async function GET(request: NextRequest) {
       cache: "no-store",
     });
 
+    // 401/403 → 認証失敗（ログインへ誘導してよい）
+    // 5xx → サーバーエラー（認証失敗ではない。503 を返して AuthGate のリダイレクトを抑制）
     if (!apiRes.ok) {
+      if (apiRes.status >= 500) {
+        console.error(`[/api/auth/me] FastAPI returned ${apiRes.status}`);
+        return NextResponse.json({ detail: "APIサービスが応答できませんでした" }, { status: 503 });
+      }
       return NextResponse.json({ detail: "Not authenticated" }, { status: 401 });
     }
 
     const data = await apiRes.json();
     return NextResponse.json(data);
   } catch (e) {
-    console.error("[/api/auth/me] error:", e);
-    // API サービスが起動中 or ネットワーク障害 → 503 を返してフロント側で区別可能にする
+    console.error("[/api/auth/me] network error:", e);
     return NextResponse.json({ detail: "APIサービスに接続できませんでした" }, { status: 503 });
   }
 }
