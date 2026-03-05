@@ -71,6 +71,8 @@
 | 38 | `apps/web/app/api/auth/me/route.ts` | ネットワークエラー時 503 返却（401 と区別） | 92bad4e |
 | 39 | `apps/web/app/_components/AuthGate.tsx` | 503 時は「接続中...」表示（ログインへリダイレクトしない） | 92bad4e |
 | 40 | `apps/api/app/routes/auth.py` | `Annotated[..., Body()]` で slowapi + FastAPI の body 誤認識を修正 | edbee9a |
+| 41 | `apps/api/alembic/versions/20260305_01_...` | `users` テーブルに `store_id`, `role` カラム追加マイグレーション | e5ebb67 |
+| 42 | `apps/api/app/models/user.py` | `store_id` を `Optional[uuid.UUID]` / nullable=True に修正（システムユーザー対応） | e5ebb67 |
 
 ---
 
