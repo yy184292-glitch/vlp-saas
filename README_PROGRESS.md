@@ -84,6 +84,18 @@
 | 51 | `apps/web/app/api/auth/me/route.ts` | FastAPI 5xx → 503 変換（401 に変換していたためリダイレクトループ発生） | 40d2471 |
 | 52 | `apps/web/app/_components/AuthGate.tsx` | 503/ネットワークエラー時に自動リトライ追加、即時リダイレクト抑制 | 54d1584 |
 
+### Phase 5: 整備プリセット機能
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 53 | `apps/api/alembic/versions/20260305_04_...` | `maintenance_presets` テーブル作成・デフォルトデータ seed | 4a671d4 |
+| 54 | `apps/api/app/models/maintenance_preset.py` | MaintenancePresetORM モデル | c6d5cee |
+| 55 | `apps/api/app/schemas/maintenance_preset.py` | Pydantic スキーマ (Create/Update/Out) | b7ba159 |
+| 56 | `apps/api/app/routes/maintenance_presets.py` | CRUD API エンドポイント (list/categories/create/update/delete) | db9db54 |
+| 57 | `apps/api/app/main.py` | maintenance_presets ルーター登録 | 7e4a8ba |
+| 58 | `apps/web/src/lib/api/maintenancePresets.ts` + `index.ts` | フロント API クライアント | 073546e |
+| 59 | `apps/web/app/(app)/masters/presets/page.tsx` | 整備プリセット管理ページ | 54adeae |
+| 60 | `apps/web/app/(app)/masters/page.tsx` | マスタハブに整備プリセットリンク追加 | 55dc2c3 |
+
 ---
 
 ## 未対応 / 今後の課題
