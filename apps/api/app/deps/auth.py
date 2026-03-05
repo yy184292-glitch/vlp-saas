@@ -11,7 +11,7 @@ from app.core.security import decode_access_token
 from app.db.session import get_db
 from app.models.user import User
 
-security = HTTPBearer(auto_error=True)
+security = HTTPBearer(auto_error=False)
 
 
 def _unauthorized(detail: str = "Could not validate credentials") -> HTTPException:
@@ -45,12 +45,14 @@ def _extract_sub(decoded: Any) -> Optional[str]:
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security),
     db: Session = Depends(get_db),
 ) -> User:
     """
     Bearer JWT を検証し、User を返す。
     """
+    if credentials is None or not credentials.credentials:
+        raise _unauthorized("Not authenticated")
     token = credentials.credentials
     try:
         decoded = decode_access_token(token)
