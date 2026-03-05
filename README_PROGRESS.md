@@ -134,6 +134,16 @@
 | 85 | `apps/web/src/lib/api/index.ts` | stores をバレル追加 | 9709753 |
 | 86 | `apps/web/app/(app)/work-orders/[id]/invoice/page.tsx` | 店舗情報（名前・住所・TEL）・宛名（ownerName）をAPIから取得して表示 | 097aad4 |
 
+### Phase 9: CSV インポート機能
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 87 | `apps/api/app/routes/import_csv.py` | CSV インポート API（テンプレート DL・車両・顧客 / dry_run・エンコード自動判定・バリデーション） | 56d1d1c |
+| 88 | `apps/api/app/main.py` | import_csv ルーター登録 | f36fc9f |
+| 89 | `apps/web/src/lib/api/importCsv.ts` | フロント API クライアント（ImportResult 型・downloadTemplate・uploadImportCsv） | 9aa3e21 |
+| 90 | `apps/web/src/lib/api/index.ts` | importCsv をバレル追加 | 163b533 |
+| 91 | `apps/web/app/(app)/import/page.tsx` | /import ページ（車両/顧客タブ・D&D・プレビュー・バリデーション色分け・実行） | d7c866e |
+| 92 | `apps/web/app/_components/ClientNav.tsx` | ナビに「CSVインポート」リンク追加 | 17a6181 |
+
 ---
 
 ## 未対応 / 今後の課題
