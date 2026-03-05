@@ -16,6 +16,7 @@ def get_me(
     return {
         "id": str(current_user.id),
         "email": current_user.email,
-        "store_id": str(current_user.store_id),
+        "name": current_user.name,
+        "store_id": str(current_user.store_id) if current_user.store_id else None,
         "role": getattr(current_user, "role", "staff") or "staff",
     }

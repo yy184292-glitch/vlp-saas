@@ -160,16 +160,11 @@ def register_owner(
     user = User(
         id=uuid4(),
         email=body.email,
+        name=body.name or None,
         store_id=body.store_id,
         role="admin",
     )
     _set_user_password_hash(user, hashed)
-
-    if body.name:
-        for attr in ("name", "full_name", "username"):
-            if hasattr(user, attr):
-                setattr(user, attr, body.name)
-                break
 
     db.add(user)
     db.commit()
@@ -241,16 +236,11 @@ def register_with_invite(
     user = User(
         id=uuid4(),
         email=body.email,
+        name=body.name or None,
         store_id=inv.store_id,
         role=role,
     )
     _set_user_password_hash(user, hashed)
-
-    if body.name:
-        for attr in ("name", "full_name", "username"):
-            if hasattr(user, attr):
-                setattr(user, attr, body.name)
-                break
 
     # mark used
     inv.used_count = int(inv.used_count or 0) + 1

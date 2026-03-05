@@ -152,7 +152,8 @@ export async function registerWithInvite(input: {
 export type Me = {
   id: string;
   email: string;
-  store_id: string;
+  name: string | null;
+  store_id: string | null;
   role: "admin" | "manager" | "staff" | string;
 };
 
