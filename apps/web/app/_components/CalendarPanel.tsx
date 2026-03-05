@@ -65,17 +65,6 @@ function monthGrid(year: number, month0: number) {
   return days;
 }
 
-function apiBaseUrl() {
-  // 既存コードの env に合わせて両対応
-  const base = (process.env.NEXT_PUBLIC_API_BASE_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "").trim();
-  return base.replace(/\/+$/, "");
-}
-
-function getAuthHeader(): Record<string, string> {
-  if (typeof window === "undefined") return {};
-  const token = window.localStorage.getItem("access_token");
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 function parseISODateOnly(iso: string): string {
   // ISO -> YYYY-MM-DD
@@ -146,22 +135,12 @@ export default function CalendarPanel() {
     async function load() {
       setApiError("");
 
-      const base = apiBaseUrl();
-      if (!base) {
-        setEvents([]);
-        return;
-      }
-
       const from = ymd(days[0]);
       const to = ymd(days[days.length - 1]);
 
       try {
-        const url = `${base}/api/v1/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
+        const url = `/api/v1/calendar/events?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
         const res = await fetch(url, {
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeader(),
-          },
           cache: "no-store",
         });
         if (!res.ok) {
@@ -189,18 +168,9 @@ export default function CalendarPanel() {
   useEffect(() => {
     let aborted = false;
     async function loadDay() {
-      const base = apiBaseUrl();
-      if (!base) {
-        setDayItems([]);
-        return;
-      }
       try {
-        const url = `${base}/api/v1/calendar/day?date=${encodeURIComponent(selected)}`;
+        const url = `/api/v1/calendar/day?date=${encodeURIComponent(selected)}`;
         const res = await fetch(url, {
-          headers: {
-            "Content-Type": "application/json",
-            ...getAuthHeader(),
-          },
           cache: "no-store",
         });
         if (!res.ok) {
