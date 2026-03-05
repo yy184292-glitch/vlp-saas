@@ -52,7 +52,10 @@ def get_current_user(
     Bearer JWT を検証し、User を返す。
     """
     token = credentials.credentials
-    decoded = decode_access_token(token)
+    try:
+        decoded = decode_access_token(token)
+    except ValueError:
+        raise _unauthorized()
     sub = _extract_sub(decoded)
     if not sub:
         raise _unauthorized("Invalid token")
