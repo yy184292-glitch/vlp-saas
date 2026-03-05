@@ -123,6 +123,12 @@
 | 78 | `apps/web/app/(app)/work-orders/[id]/invoice/page.tsx` | 見積/請求書確認・window.print() PDF出力 | 5e495b6 |
 | 79 | `apps/web/app/(app)/work-orders/page.tsx` | 作業指示書に「作業報告書を作成」ボタン追加 | 680a522 |
 
+### Phase 8: 見積書・請求書 UI品質改善
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 80 | `apps/web/app/(app)/work-orders/[id]/invoice/page.tsx` | 日本語化・日付YYYY年M月D日・発行番号自動採番・ステータス色分け・書類レイアウト・縞模様テーブル・合計右下大表示・A4印刷CSS | 0d92ef3 |
+| 81 | `apps/web/app/globals.css` | A4印刷CSS（@page A4・ナビ非表示・print-color-adjust） | 602e9c0 |
+
 ---
 
 ## 未対応 / 今後の課題
@@ -131,6 +137,9 @@
 |---|---|---|
 | 🟠 高 | **Render の Start Command を `./start.sh` に変更**（ダッシュボードで手動設定が必要） | Render Settings |
 | 🟠 高 | **動作確認**（ログイン・新規登録のエンドツーエンドテスト） | - |
+| 🟡 中 | 書類上部の店舗名・住所・電話番号を API（`/api/v1/stores`）から取得 | `invoice/page.tsx` |
+| 🟡 中 | 宛名（顧客名）を車両/顧客 API から取得 | `invoice/page.tsx` |
+| 🟡 中 | `InvoiceStatus` に `paid`/`cancelled` を追加 | `apps/api/app/schemas/work_report.py`, `workReports.ts` |
 | 🟡 中 | フロント Sentry 再有効化（互換バージョン確認後） | `package.json`, `sentry.*.config.ts` |
 | 🟡 中 | `src/components/cars/` 旧コンポーネント整理（未使用） | `car-form.tsx`, `car-filters.tsx` 等 |
 | 🟡 中 | テストカバレッジ追加 | `apps/api/tests/` |
