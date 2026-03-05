@@ -57,7 +57,11 @@ def upgrade() -> None:
             ),
         )
 
-    # ── Seed superadmin user (idempotent) ──────────────────────────────────
+    # ── Make users.store_id nullable BEFORE inserting superadmin (store_id=NULL) ──
+    # Idempotent: DROP NOT NULL is safe even if the column is already nullable.
+    op.alter_column("users", "store_id", nullable=True)
+
+    # ── Seed superadmin user (idempotent) ──────────────────────────────────────
     existing_admin = bind.execute(
         text("SELECT id FROM users WHERE email = :email LIMIT 1"),
         {"email": SUPERADMIN_EMAIL},
@@ -71,7 +75,6 @@ def upgrade() -> None:
             pw_bytes = SUPERADMIN_PASSWORD.encode("utf-8")[:72]
             hashed = _ctx.hash(pw_bytes)
         except Exception:
-            # passlib not installed in migration env – set empty hash; admin must reset
             hashed = ""
 
         bind.execute(
