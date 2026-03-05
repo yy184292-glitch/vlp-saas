@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { createWorkReport } from "@/src/lib/api";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -507,6 +508,26 @@ export default function Page() {
     updateSelected({ lines, status: lines.length > 0 ? "in_progress" : "draft" });
   };
 
+  const createReport = async () => {
+    if (!selected) return;
+    try {
+      const items = selected.lines.map((l, idx) => ({
+        item_name: l.name,
+        item_type: "work" as const,
+        quantity: l.qty,
+        unit_price: l.sellPrice,
+        sort_order: idx,
+      }));
+      const report = await createWorkReport({
+        title: selected.title,
+        items,
+      });
+      router.push("/work-orders/" + report.id + "/report");
+    } catch {
+      alert("作業報告書の作成に失敗しました");
+    }
+  };
+
   const finalizeToBillingDraft = () => {
     if (!selected) return;
     if (selected.lines.length === 0) return;
@@ -709,6 +730,13 @@ export default function Page() {
                         完了クリア
                       </Button>
 
+                      <Button
+                        onClick={createReport}
+                        disabled={selected.lines.length === 0}
+                        className="bg-green-600 hover:bg-green-700"
+                      >
+                        作業報告書を作成
+                      </Button>
                       <Button onClick={finalizeToBillingDraft} disabled={selected.lines.length === 0}>
                         請求へ（下書き）
                       </Button>
