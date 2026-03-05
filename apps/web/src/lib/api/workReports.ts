@@ -3,7 +3,7 @@ import { apiFetch } from "./core";
 export type WorkReportItemType = "work" | "material";
 export type WorkReportStatus = "in_progress" | "completed";
 export type InvoiceType = "estimate" | "invoice";
-export type InvoiceStatus = "draft" | "issued";
+export type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 
 export interface WorkReportItem {
   id: string;
@@ -110,7 +110,7 @@ export interface InvoiceUpdate {
   tax?: number;
   total?: number;
   notes?: string | null;
-  status?: InvoiceStatus;
+  status?: InvoiceStatus; // draft | issued | paid | cancelled
 }
 
 // ── WorkReports ──
