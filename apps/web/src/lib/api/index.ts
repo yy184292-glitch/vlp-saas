@@ -8,3 +8,4 @@ export * from "./workMasters";
 export * from "./workReports";
 export * from "./stores";
 export * from "./importCsv";
+export * from "./sales";
