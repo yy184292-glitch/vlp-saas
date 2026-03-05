@@ -1,3 +1,8 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -e
-uvicorn app:app --host 0.0.0.0 --port 
+
+echo "[start.sh] Running database migrations..."
+alembic upgrade head
+
+echo "[start.sh] Starting API server..."
+uvicorn app.main:app --host 0.0.0.0 --port "${PORT:-8000}"
