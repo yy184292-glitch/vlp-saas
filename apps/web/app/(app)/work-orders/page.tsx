@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { createWorkReport } from "@/src/lib/api";
+import { createWorkReport } from "@/lib/api";
 import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";

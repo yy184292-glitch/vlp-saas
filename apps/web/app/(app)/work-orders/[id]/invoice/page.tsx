@@ -17,7 +17,7 @@ import {
   type WorkReport,
   type Invoice,
   type WorkReportItem,
-} from "@/src/lib/api";
+} from "@/lib/api";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 

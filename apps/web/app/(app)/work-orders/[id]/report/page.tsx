@@ -27,7 +27,7 @@ import {
   type WorkReport,
   type WorkReportItem,
   type WorkMaster,
-} from "@/src/lib/api";
+} from "@/lib/api";
 
 interface MaterialRow {
   id: string;
