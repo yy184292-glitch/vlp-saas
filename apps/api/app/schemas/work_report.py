@@ -94,7 +94,7 @@ class InvoiceUpdate(BaseModel):
     tax: Optional[Decimal] = Field(default=None, ge=0)
     total: Optional[Decimal] = Field(default=None, ge=0)
     notes: Optional[str] = None
-    status: Optional[str] = Field(default=None, pattern="^(draft|issued)$")
+    status: Optional[str] = Field(default=None, pattern="^(draft|issued|paid|cancelled)$")
 
 
 # ────────────────────────────────────────────
