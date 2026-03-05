@@ -136,3 +136,29 @@ html, body {
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
 }
+
+/* ─── 印刷: A4最適化・ナビ非表示 ─────────────────────────────────────────── */
+@media print {
+  /* A4縦・余白15mm */
+  @page {
+    size: A4 portrait;
+    margin: 15mm;
+  }
+
+  /* ナビゲーション・カレンダーパネル・ボタン類を非表示 */
+  nav,
+  header,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* 背景色・縞模様を印刷に反映 */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}
