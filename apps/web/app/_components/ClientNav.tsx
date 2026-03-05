@@ -9,6 +9,7 @@ import { Container } from "./layout/Container";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { applyBgGrayClass, getBgGrayFromStorage, setBgGrayToStorage } from "./UiPreferences";
+import { Settings, KeyRound, LogOut, User } from "lucide-react";
 
 type NavLinkProps = { href: string; label: string; exact?: boolean };
 
@@ -156,6 +157,135 @@ function ReportsMenu() {
   );
 }
 
+function UserMenu({ onLogout }: { onLogout: () => void }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (btnRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          padding: "9px 12px",
+          borderRadius: 12,
+          border: "2px solid #e5e7eb",
+          background: "#fff",
+          cursor: "pointer",
+          fontWeight: 800,
+          fontSize: 13,
+          whiteSpace: "nowrap",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+          marginLeft: 6,
+        }}
+        aria-label="ユーザーメニュー"
+      >
+        <User size={14} />
+        ▾
+      </button>
+
+      {open && (
+        <div
+          ref={panelRef}
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 8px)",
+            width: 180,
+            background: "#fff",
+            border: "1px solid #e5e7eb",
+            borderRadius: 14,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+            padding: 8,
+            zIndex: 50,
+          }}
+        >
+          <Link
+            href="/settings"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 10px",
+              borderRadius: 10,
+              textDecoration: "none",
+              color: "#111",
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            <Settings size={14} /> 設定
+          </Link>
+          <Link
+            href="/settings/password"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 10px",
+              borderRadius: 10,
+              textDecoration: "none",
+              color: "#111",
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            <KeyRound size={14} /> パスワード変更
+          </Link>
+          <div style={{ margin: "4px 0", borderTop: "1px solid #f0f0f0" }} />
+          <button
+            type="button"
+            onClick={() => { setOpen(false); onLogout(); }}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              width: "100%",
+              padding: "10px 10px",
+              borderRadius: 10,
+              border: "none",
+              background: "transparent",
+              color: "#dc2626",
+              fontWeight: 700,
+              fontSize: 13,
+              cursor: "pointer",
+              textAlign: "left",
+            }}
+          >
+            <LogOut size={14} /> ログアウト
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ClientNav() {
   const router = useRouter();
   const [authed, setAuthed] = useState(false);
@@ -248,22 +378,7 @@ export default function ClientNav() {
             </div>
 
 
-            <button
-              onClick={onLogout}
-              style={{
-                padding: "9px 12px",
-                borderRadius: 12,
-                border: "2px solid #e5e7eb",
-                background: "#fff",
-                cursor: "pointer",
-                fontWeight: 800,
-                fontSize: 13,
-                whiteSpace: "nowrap",
-                marginLeft: 6,
-              }}
-            >
-              ログアウト
-            </button>
+            <UserMenu onLogout={onLogout} />
           </div>
         </div>
       </Container>
