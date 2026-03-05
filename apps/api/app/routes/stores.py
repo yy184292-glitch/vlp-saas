@@ -115,6 +115,7 @@ def create_store(
     row = StoreORM(
         id=uuid4(),
         name=body.name,
+        prefecture=body.prefecture,
         postal_code=body.postal_code,
         address1=body.address1,
         address2=body.address2,

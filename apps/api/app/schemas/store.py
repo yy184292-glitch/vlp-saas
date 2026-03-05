@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 class StoreBase(BaseModel):
     name: str = Field(min_length=1, max_length=255)
 
+    prefecture: Optional[str] = Field(default=None, max_length=32)
     postal_code: Optional[str] = Field(default=None, max_length=16)
     address1: Optional[str] = Field(default=None, max_length=255)
     address2: Optional[str] = Field(default=None, max_length=255)
@@ -35,6 +36,7 @@ class StoreCreateIn(StoreBase):
 class StoreUpdateIn(BaseModel):
     name: Optional[str] = Field(default=None, min_length=1, max_length=255)
 
+    prefecture: Optional[str] = Field(default=None, max_length=32)
     postal_code: Optional[str] = Field(default=None, max_length=16)
     address1: Optional[str] = Field(default=None, max_length=255)
     address2: Optional[str] = Field(default=None, max_length=255)
