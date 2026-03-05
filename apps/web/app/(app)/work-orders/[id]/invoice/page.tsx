@@ -11,9 +11,13 @@ import {
   createInvoice,
   listInvoices,
   updateInvoice,
+  listStores,
+  getCar,
   type WorkReport,
   type Invoice,
   type WorkReportItem,
+  type Store,
+  type Car,
 } from "@/lib/api";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -80,6 +84,8 @@ export default function InvoicePage() {
 
   const [report, setReport] = React.useState<WorkReport | null>(null);
   const [invoice, setInvoice] = React.useState<Invoice | null>(null);
+  const [store, setStore] = React.useState<Store | null>(null);
+  const [car, setCar] = React.useState<Car | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
@@ -93,8 +99,19 @@ export default function InvoicePage() {
   React.useEffect(() => {
     (async () => {
       try {
-        const [r, invList] = await Promise.all([getWorkReport(id), listInvoices(id)]);
+        const [r, invList, stores] = await Promise.all([
+          getWorkReport(id),
+          listInvoices(id),
+          listStores().catch(() => [] as Store[]),
+        ]);
         setReport(r);
+        setStore(stores[0] ?? null);
+
+        // 車両情報（car_id があれば取得して宛名に使用）
+        if (r.car_id) {
+          getCar(r.car_id).then(setCar).catch(() => null);
+        }
+
         if (invList.length > 0) {
           const latest = invList[invList.length - 1];
           setInvoice(latest);
@@ -300,6 +317,20 @@ export default function InvoicePage() {
   const invoiceNo = invoice ? genInvoiceNo(invoice) : "-";
   const docTitle = invoiceType === "estimate" ? "見　積　書" : "請　求　書";
 
+  // 宛名: 車両オーナー名 → vehicle_category → フォールバック
+  const customerName =
+    car?.ownerName ?? car?.newOwnerName ?? report.vehicle_category ?? "お客様";
+
+  // 店舗住所を整形: 〒postal prefecture address1 address2
+  function fmtStoreAddress(s: Store): string {
+    const parts: string[] = [];
+    if (s.postal_code) parts.push(`〒${s.postal_code}`);
+    if (s.prefecture) parts.push(s.prefecture);
+    if (s.address1) parts.push(s.address1);
+    if (s.address2) parts.push(s.address2);
+    return parts.join("　");
+  }
+
   return (
     <div className="space-y-6 pb-32">
       {/* 画面ヘッダー（印刷時非表示） */}
@@ -328,17 +359,21 @@ export default function InvoicePage() {
           <div>
             <p className="text-xs text-slate-400 mb-1">お客様</p>
             <p className="text-xl font-bold border-b-2 border-slate-700 pb-1 min-w-[180px]">
-              {report.vehicle_category ?? "　"}　御中
+              {customerName}　御中
             </p>
           </div>
           {/* 店舗情報 */}
           <div className="text-right text-sm text-slate-600 space-y-0.5">
             <div className="flex items-center justify-end gap-1.5 mb-1">
               <Building2 className="h-4 w-4 text-slate-500" />
-              <span className="font-bold text-base text-slate-800">○○自動車整備</span>
+              <span className="font-bold text-base text-slate-800">
+                {store?.name ?? "（店舗名未設定）"}
+              </span>
             </div>
-            <p>〒000-0000　○○県○○市○○1-2-3</p>
-            <p>TEL: 000-0000-0000</p>
+            {store && fmtStoreAddress(store) && (
+              <p>{fmtStoreAddress(store)}</p>
+            )}
+            {store?.tel && <p>TEL: {store.tel}</p>}
           </div>
         </div>
 
