@@ -109,6 +109,20 @@
 | 68 | `apps/web/app/(app)/masters/presets/page.tsx` | /masters/work へリダイレクト（旧整備プリセットページ） | 19d7607 |
 | 69 | `apps/web/app/(app)/masters/page.tsx` | マスタハブから整備プリセットカード削除・作業マスタ説明更新 | 283c5c2 |
 
+### Phase 7: 作業報告書・見積/請求書・PDF出力
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 70 | `apps/api/alembic/versions/20260305_07_create_work_reports.py` | `work_reports`・`work_report_items`・`invoices` テーブル作成 | f367914 |
+| 71 | `apps/api/app/models/work_report.py` | WorkReportORM・WorkReportItemORM・InvoiceORM モデル | 8948e3f |
+| 72 | `apps/api/app/schemas/work_report.py` | Pydantic スキーマ (Create/Update/Out) | 5ccf6f5 |
+| 73 | `apps/api/app/routes/work_reports.py` | CRUD API (list/get/create/patch/complete/delete + items + invoices) | c2e3e7d |
+| 74 | `apps/api/app/main.py` | work_reports ルーター登録 | a11cfc7 |
+| 75 | `apps/web/src/lib/api/workReports.ts` + `index.ts` | フロント API クライアント・型定義 | fca7d8a |
+| 76 | `apps/web/src/components/ui/numpad.tsx` | テンキー UI コンポーネント（スライドアップ・useNumpad hook） | 852dc78 |
+| 77 | `apps/web/app/(app)/work-orders/[id]/report/page.tsx` | 作業報告書ページ（チェックリスト・追加部材・合計・完了報告） | 7bf7521 |
+| 78 | `apps/web/app/(app)/work-orders/[id]/invoice/page.tsx` | 見積/請求書確認・window.print() PDF出力 | 5e495b6 |
+| 79 | `apps/web/app/(app)/work-orders/page.tsx` | 作業指示書に「作業報告書を作成」ボタン追加 | 680a522 |
+
 ---
 
 ## 未対応 / 今後の課題
