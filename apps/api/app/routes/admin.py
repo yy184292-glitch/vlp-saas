@@ -3,10 +3,11 @@ from __future__ import annotations
 import secrets
 import string
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import List
+from datetime import date, datetime, timedelta, timezone
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -163,3 +164,49 @@ def delete_license(license_id: str, db: Session = Depends(get_db)) -> None:
     lic.status = "suspended"
     lic.updated_at = datetime.now(timezone.utc)
     db.commit()
+
+
+class LicenseExtendRequest(BaseModel):
+    days: Optional[int] = None
+    extend_to: Optional[date] = None
+
+
+@router.put("/licenses/{license_id}/extend", response_model=LicenseOut)
+def extend_license(
+    license_id: str,
+    body: LicenseExtendRequest,
+    db: Session = Depends(get_db),
+) -> LicenseOut:
+    """ライセンスの有効期限を延長する。days または extend_to のどちらかを指定。"""
+    if body.days is None and body.extend_to is None:
+        raise HTTPException(status_code=400, detail="days または extend_to を指定してください")
+
+    lic = db.get(LicenseORM, uuid.UUID(license_id))
+    if not lic:
+        raise HTTPException(status_code=404, detail="License not found")
+
+    now = datetime.now(timezone.utc)
+
+    if body.extend_to is not None:
+        new_end = datetime(
+            body.extend_to.year, body.extend_to.month, body.extend_to.day,
+            23, 59, 59, tzinfo=timezone.utc,
+        )
+    else:
+        # days 延長: 現在の終了日 or 今日を基準に加算
+        base = lic.current_period_end or now
+        new_end = base + timedelta(days=body.days)  # type: ignore[operator]
+
+    lic.current_period_end = new_end
+    # trial_ends_at も同期して延長
+    if lic.status == "trial" and lic.trial_ends_at is not None:
+        lic.trial_ends_at = new_end
+    lic.updated_at = now
+
+    db.commit()
+    db.refresh(lic)
+
+    store = db.get(StoreORM, lic.store_id)
+    if not store:
+        raise HTTPException(status_code=500, detail="Store not found")
+    return _license_to_out(lic, store)
