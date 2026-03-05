@@ -155,7 +155,7 @@ def update_license(
     return _license_to_out(lic, store)
 
 
-@router.delete("/licenses/{license_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/licenses/{license_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def delete_license(license_id: str, db: Session = Depends(get_db)) -> None:
     lic = db.get(LicenseORM, uuid.UUID(license_id))
     if not lic:
