@@ -2,7 +2,7 @@ import { apiFetch } from "./core";
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
-export type InvoiceType = "invoice" | "receipt";
+export type LicenseInvoiceType = "invoice" | "receipt";
 export type InvoiceBillingCycle = "monthly" | "yearly";
 export type LicenseInvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 
@@ -12,7 +12,7 @@ export interface LicenseInvoice {
   license_id: string;
   store_name: string;
   invoice_number: string;
-  type: InvoiceType;
+  type: LicenseInvoiceType;
   billing_cycle: InvoiceBillingCycle;
   amount: number;
   tax_amount: number;
@@ -31,7 +31,7 @@ export interface LicenseInvoice {
 
 export interface LicenseInvoiceCreateInput {
   license_id: string;
-  type?: InvoiceType;
+  type?: LicenseInvoiceType;
   billing_cycle?: InvoiceBillingCycle;
   amount: number;
   period_from?: string | null;
