@@ -12,3 +12,4 @@ export * from "./sales";
 export * from "./admin";
 export * from "./loanerCars";
 export * from "./sns";
+export * from "./attendance";
