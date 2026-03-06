@@ -26,3 +26,6 @@ sentry-sdk[fastapi]>=2.0
 
 # Stripe payment processing
 stripe>=10.0
+
+# Web Push notifications (VAPID)
+pywebpush>=2.0
