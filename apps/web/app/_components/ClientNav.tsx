@@ -30,16 +30,16 @@ function NavLink({ href, label, exact = false }: NavLinkProps) {
         padding: "9px 12px",
         borderRadius: 12,
         textDecoration: "none",
-        border: active ? "1px solid #111" : "2px solid #e5e7eb",
-        background: active ? "#111" : "#fff",
-        color: active ? "#fff" : "#111",
+        border: active ? "1px solid #555" : "2px solid #3a3a3a",
+        background: active ? "#3a3a3a" : "transparent",
+        color: active ? "#fff" : "#bbb",
         fontWeight: 800,
         fontSize: 13,
         display: "inline-flex",
         alignItems: "center",
         gap: 6,
         whiteSpace: "nowrap",
-        boxShadow: active ? "0 1px 0 rgba(0,0,0,0.2)" : "0 1px 0 rgba(0,0,0,0.05)",
+        boxShadow: active ? "0 1px 0 rgba(0,0,0,0.4)" : "none",
       }}
     >
       {label}
@@ -100,14 +100,14 @@ function ReportsMenu() {
         style={{
           padding: "9px 12px",
           borderRadius: 12,
-          border: active ? "1px solid #111" : "2px solid #e5e7eb",
-          background: active ? "#111" : "#fff",
-          color: active ? "#fff" : "#111",
+          border: active ? "1px solid #555" : "2px solid #3a3a3a",
+          background: active ? "#3a3a3a" : "transparent",
+          color: active ? "#fff" : "#bbb",
           fontWeight: 800,
           fontSize: 13,
           cursor: "pointer",
           whiteSpace: "nowrap",
-          boxShadow: active ? "0 1px 0 rgba(0,0,0,0.2)" : "0 1px 0 rgba(0,0,0,0.05)",
+          boxShadow: active ? "0 1px 0 rgba(0,0,0,0.4)" : "none",
         }}
       >
         売上レポート ▾
@@ -121,10 +121,10 @@ function ReportsMenu() {
             right: 0,
             top: "calc(100% + 8px)",
             width: 220,
-            background: "#fff",
-            border: "1px solid #e5e7eb",
+            background: "#2a2a2a",
+            border: "1px solid #3a3a3a",
             borderRadius: 14,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
             padding: 8,
             zIndex: 50,
           }}
@@ -141,8 +141,8 @@ function ReportsMenu() {
                   padding: "10px 10px",
                   borderRadius: 10,
                   textDecoration: "none",
-                  color: "#111",
-                  background: a ? "#f3f4f6" : "transparent",
+                  color: "#e0e0e0",
+                  background: a ? "#3a3a3a" : "transparent",
                   fontWeight: 700,
                   fontSize: 13,
                 }}
@@ -191,8 +191,9 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
         style={{
           padding: "9px 12px",
           borderRadius: 12,
-          border: "2px solid #e5e7eb",
-          background: "#fff",
+          border: "2px solid #3a3a3a",
+          background: "transparent",
+          color: "#bbb",
           cursor: "pointer",
           fontWeight: 800,
           fontSize: 13,
@@ -216,10 +217,10 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
             right: 0,
             top: "calc(100% + 8px)",
             width: 180,
-            background: "#fff",
-            border: "1px solid #e5e7eb",
+            background: "#2a2a2a",
+            border: "1px solid #3a3a3a",
             borderRadius: 14,
-            boxShadow: "0 10px 30px rgba(0,0,0,0.08)",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
             padding: 8,
             zIndex: 50,
           }}
@@ -234,7 +235,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
               padding: "10px 10px",
               borderRadius: 10,
               textDecoration: "none",
-              color: "#111",
+              color: "#e0e0e0",
               fontWeight: 700,
               fontSize: 13,
             }}
@@ -251,14 +252,14 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
               padding: "10px 10px",
               borderRadius: 10,
               textDecoration: "none",
-              color: "#111",
+              color: "#e0e0e0",
               fontWeight: 700,
               fontSize: 13,
             }}
           >
             <KeyRound size={14} /> パスワード変更
           </Link>
-          <div style={{ margin: "4px 0", borderTop: "1px solid #f0f0f0" }} />
+          <div style={{ margin: "4px 0", borderTop: "1px solid #3a3a3a" }} />
           <button
             type="button"
             onClick={() => { setOpen(false); onLogout(); }}
@@ -271,7 +272,7 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
               borderRadius: 10,
               border: "none",
               background: "transparent",
-              color: "#dc2626",
+              color: "#ef4444",
               fontWeight: 700,
               fontSize: 13,
               cursor: "pointer",
@@ -293,7 +294,7 @@ export default function ClientNav() {
   const [bgGray, setBgGray] = useState(true);
 
   useEffect(() => {
-    // デフォルト: ON（背景ライトグレー）
+    // デフォルト: ON（背景を濃くする）
     try {
       const v = getBgGrayFromStorage();
       setBgGray(v);
@@ -338,10 +339,10 @@ export default function ClientNav() {
   if (!authed) return null;
 
   return (
-    <header className="sticky top-0 z-50 border-b" style={{ background: "#f4f4f5" }}>
+    <header className="sticky top-0 z-50 border-b" style={{ background: "#1e1e1e", borderColor: "#3a3a3a" }}>
       <Container size="wide" className="px-4 py-3">
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          <Link href="/dashboard" style={{ textDecoration: "none", color: "#111" }}>
+          <Link href="/dashboard" style={{ textDecoration: "none", color: "#e0e0e0" }}>
             <div style={{ fontWeight: 950, fontSize: 18, whiteSpace: "nowrap" }}>VLP system</div>
           </Link>
 
@@ -373,8 +374,8 @@ export default function ClientNav() {
             {canViewSales ? <ReportsMenu /> : null}
 
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <Label style={{ fontSize: 12, fontWeight: 800 }} htmlFor="bg-gray-toggle">
-                背景グレー
+              <Label style={{ fontSize: 12, fontWeight: 800, color: "#999" }} htmlFor="bg-gray-toggle">
+                背景を濃く
               </Label>
               <Switch id="bg-gray-toggle" checked={bgGray} onCheckedChange={onToggleBgGray} />
             </div>
