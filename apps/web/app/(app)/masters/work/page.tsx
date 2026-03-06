@@ -42,7 +42,7 @@ function validateForm(f: FormState): string | null {
   for (const r of f.rates) {
     const d = Number(r.duration_minutes);
     if (!Number.isInteger(d) || d < 1) return r.vehicle_category + ": 作業時間は1分以上の整数";
-    if (r.price !== "") { const pr = Number(r.price); if (!Number.isFinite(pr) || pr < 0) return r.vehicle_category + ": 工賞は0以上"; }
+    if (r.price !== "") { const pr = Number(r.price); if (!Number.isFinite(pr) || pr < 0) return r.vehicle_category + ": 工賃は0以上"; }
   }
   return null;
 }
@@ -132,7 +132,7 @@ export default function WorkMasterPage() {
       <div className="flex items-end justify-between gap-3 flex-wrap">
         <div>
           <div className="text-xl font-semibold tracking-tight">作業マスタ</div>
-          <div className="text-sm text-muted-foreground">作業カテゴリ・車種別時間・工賞を管理します。</div>
+          <div className="text-sm text-muted-foreground">作業カテゴリ・車種別時間・工賃を管理します。</div>
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button asChild variant="outline"><Link href="/masters">マスタトップへ</Link></Button>
@@ -172,7 +172,7 @@ export default function WorkMasterPage() {
                       <thead><tr className="border-b">
                         <th className="px-3 py-1.5 text-left font-medium">車種</th>
                         <th className="px-3 py-1.5 text-right font-medium">作業時間</th>
-                        <th className="px-3 py-1.5 text-right font-medium">工賞</th>
+                        <th className="px-3 py-1.5 text-right font-medium">工賃</th>
                       </tr></thead>
                       <tbody>
                         {item.rates.map(r => (
@@ -219,13 +219,13 @@ export default function WorkMasterPage() {
               )}
             </div>
             <div>
-              <div className="text-sm font-medium mb-2">車種別時間・工賞</div>
+              <div className="text-sm font-medium mb-2">車種別時間・工賃</div>
               <div className="rounded-md border overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead><tr className="border-b bg-muted/40">
                     <th className="px-3 py-2 text-left">車種</th>
                     <th className="px-3 py-2 text-left">作業時間（分）*</th>
-                    <th className="px-3 py-2 text-left">工賞（円）</th>
+                    <th className="px-3 py-2 text-left">工賃（円）</th>
                   </tr></thead>
                   <tbody>
                     {form.rates.map((r, i) => (
