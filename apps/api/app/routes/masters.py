@@ -148,6 +148,22 @@ def create_expense_category(
     return row
 
 
+@router.delete("/master/expense-categories/{category_id}")
+def delete_expense_category(
+    category_id: UUID,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    row = db.get(ExpenseCategoryORM, category_id)
+    if not row or row.store_id != _resolve_store_id(user, None):
+        raise HTTPException(status_code=404, detail="not found")
+    if row.is_system:
+        raise HTTPException(status_code=400, detail="システムカテゴリは削除できません")
+    db.delete(row)
+    db.commit()
+    return {"ok": True}
+
+
 # ----------------------------
 # Work categories
 # ----------------------------
