@@ -272,7 +272,7 @@ export default function LoanerPage() {
           <div className="text-sm text-muted-foreground">代車の登録と予約スケジュールを管理します。</div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={openCreateRes}><CalendarDays className="h-4 w-4 mr-1" />予約を追加</Button>
+          <Button variant="outline" onClick={() => openCreateRes()}><CalendarDays className="h-4 w-4 mr-1" />予約を追加</Button>
           <Button onClick={openCreateCar}><Plus className="h-4 w-4 mr-1" />代車を登録</Button>
         </div>
       </div>
