@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { ApiError, type Car, getCar, listCarValuations, updateCar } from "@/lib/api";
+import { ApiError, type Car, getCar, listCarValuations, updateCar, getIntegrations, type IntegrationSettings } from "@/lib/api";
 
 type TabKey = "details" | "valuations";
 
@@ -54,6 +54,8 @@ export default function CarDetailClient({ carId }: { carId: string }) {
   const [purchasePriceText, setPurchasePriceText] = useState("");
   const [salePriceText, setSalePriceText] = useState("");
 
+  const [integrations, setIntegrations] = useState<IntegrationSettings | null>(null);
+
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [saveUnsupported, setSaveUnsupported] = useState(false);
 
@@ -84,6 +86,13 @@ export default function CarDetailClient({ carId }: { carId: string }) {
           if (!cancelled) setValuations(v);
         } catch {
           if (!cancelled) setValuations([]);
+        }
+
+        try {
+          const integ = await getIntegrations();
+          if (!cancelled) setIntegrations(integ);
+        } catch {
+          // integrations optional - ignore errors
         }
       } catch (e) {
         if (cancelled) return;
@@ -188,6 +197,44 @@ export default function CarDetailClient({ carId }: { carId: string }) {
     ※ 記入ありは、車両の「所有者/新所有者」情報と、店舗の「受任者マスタ」「印刷項目ON/OFF」を反映します。
   </div>
 </div>
+
+{integrations && (integrations.loan_enabled || integrations.warranty_enabled || integrations.insurance_enabled) && (
+  <div className="mb-4 rounded-xl border bg-neutral-50 p-3">
+    <div className="text-sm font-semibold mb-2">外部申込</div>
+    <div className="flex flex-wrap gap-2">
+      {integrations.loan_enabled && integrations.loan_url && (
+        <a
+          href={integrations.loan_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border bg-blue-50 border-blue-200 px-3 py-2 text-sm text-blue-700 hover:bg-blue-100"
+        >
+          {integrations.loan_company_name ? `${integrations.loan_company_name} ローン申込` : "ローン申込"}
+        </a>
+      )}
+      {integrations.warranty_enabled && integrations.warranty_url && (
+        <a
+          href={integrations.warranty_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border bg-green-50 border-green-200 px-3 py-2 text-sm text-green-700 hover:bg-green-100"
+        >
+          {integrations.warranty_company_name ? `${integrations.warranty_company_name} 保証申込` : "保証申込"}
+        </a>
+      )}
+      {integrations.insurance_enabled && integrations.insurance_url && (
+        <a
+          href={integrations.insurance_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border bg-amber-50 border-amber-200 px-3 py-2 text-sm text-amber-700 hover:bg-amber-100"
+        >
+          {integrations.insurance_company_name ? `${integrations.insurance_company_name} 保険申込` : "保険申込"}
+        </a>
+      )}
+    </div>
+  </div>
+)}
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
