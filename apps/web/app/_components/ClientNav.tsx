@@ -9,7 +9,7 @@ import { Container } from "./layout/Container";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { applyBgGrayClass, getBgGrayFromStorage, setBgGrayToStorage } from "./UiPreferences";
-import { Settings, KeyRound, LogOut, User, ShieldCheck, FileText } from "lucide-react";
+import { Settings, KeyRound, LogOut, User, ShieldCheck, FileText, Gift, CreditCard } from "lucide-react";
 
 type NavLinkProps = { href: string; label: string; exact?: boolean };
 
@@ -167,6 +167,7 @@ function MastersMenu() {
     { href: "/masters", label: "各種マスタ登録" },
     { href: "/masters/expense-categories", label: "経費カテゴリ" },
     { href: "/masters/car-status-colors", label: "車両ステータスカラー" },
+    { href: "/masters/integrations", label: "ローン/保証/保険設定" },
   ];
 
   const active = items.some((it) =>
@@ -275,6 +276,7 @@ function AdminMenu() {
     { href: "/admin/licenses", label: "ライセンス管理" },
     { href: "/admin/invites", label: "紹介管理" },
     { href: "/admin/invoices", label: "請求書管理" },
+    { href: "/admin/partners", label: "パートナー管理" },
     { href: "/admin/licenses/new", label: "新規ライセンス発行" },
   ];
 
@@ -488,6 +490,40 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
             }}
           >
             <FileText size={14} /> 請求書確認
+          </Link>
+          <Link
+            href="/settings/referral"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 10px",
+              borderRadius: 10,
+              textDecoration: "none",
+              color: "#e0e0e0",
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            <Gift size={14} /> 紹介・割引
+          </Link>
+          <Link
+            href="/settings/billing"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 10px",
+              borderRadius: 10,
+              textDecoration: "none",
+              color: "#e0e0e0",
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            <CreditCard size={14} /> 料金・決済
           </Link>
           <div style={{ margin: "4px 0", borderTop: "1px solid #3a3a3a" }} />
           <button
