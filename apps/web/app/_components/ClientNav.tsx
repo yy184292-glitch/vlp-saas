@@ -168,6 +168,7 @@ function MastersMenu() {
     { href: "/masters/expense-categories", label: "経費カテゴリ" },
     { href: "/masters/car-status-colors", label: "車両ステータスカラー" },
     { href: "/masters/integrations", label: "ローン/保証/保険設定" },
+    { href: "/masters/line", label: "LINE設定" },
   ];
 
   const active = items.some((it) =>
@@ -633,6 +634,7 @@ export default function ClientNav() {
             <NavLink href="/maintenance-records" label="整備記録簿" />
             <NavLink href="/sales/expenses" label="経費一覧" />
             <NavLink href="/masters/sns" label="SNS投稿" />
+            <NavLink href="/line" label="LINE管理" />
             {/* 勤怠管理: 管理者→一覧、スタッフ→打刻ページ */}
             <NavLink
               href={role === "admin" || role === "manager" || role === "superadmin" ? "/attendance" : "/attendance/punch"}
