@@ -44,6 +44,10 @@ from app.routes.sns import router as sns_router
 from app.routes.attendance import router as attendance_router
 from app.routes.license_invoice import router as license_invoice_router
 from app.routes.license_invoice import store_router as store_invoice_router
+from app.routes.partner import router as partner_router
+from app.routes.referral import router as referral_router
+from app.routes.stripe_webhook import router as stripe_webhook_router
+from app.routes.stripe_payment import router as stripe_payment_router
 
 logger = logging.getLogger(__name__)
 
@@ -215,3 +219,7 @@ app.include_router(sns_router, prefix=API_PREFIX)
 app.include_router(attendance_router, prefix=API_PREFIX)
 app.include_router(license_invoice_router, prefix=API_PREFIX)
 app.include_router(store_invoice_router, prefix=API_PREFIX)
+app.include_router(partner_router, prefix=API_PREFIX)
+app.include_router(referral_router, prefix=API_PREFIX)
+app.include_router(stripe_webhook_router, prefix=API_PREFIX)
+app.include_router(stripe_payment_router, prefix=API_PREFIX)
