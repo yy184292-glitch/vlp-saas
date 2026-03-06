@@ -25,7 +25,7 @@ from app.db.session import get_db
 from app.deps.auth import get_current_user
 from app.models.car import Car
 from app.models.sns_post import SnsPostORM, SnsSettingORM
-from app.models.store import Store
+from app.models.store import StoreORM as Store
 from app.schemas.sns import (
     RepostScheduleItem,
     SnsPostCreate,
