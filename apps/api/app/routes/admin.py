@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.dependencies.request_user import attach_current_user
 from app.dependencies.permissions import require_roles
+from app.models.invite import StoreInviteORM
 from app.models.license import LicenseORM
 from app.models.store import StoreORM
 from app.models.user import User
@@ -210,3 +211,88 @@ def extend_license(
     if not store:
         raise HTTPException(status_code=500, detail="Store not found")
     return _license_to_out(lic, store)
+
+
+# ─── Dashboard Stats ──────────────────────────────────────────
+
+class DashboardStats(BaseModel):
+    total_stores: int
+    total_users: int
+    licenses_active: int
+    licenses_trial: int
+    licenses_suspended: int
+    licenses_expiring_soon: int  # 30日以内に期限切れ
+
+
+@router.get("/dashboard", response_model=DashboardStats)
+def get_dashboard_stats(db: Session = Depends(get_db)) -> DashboardStats:
+    from sqlalchemy import func as sa_func
+    now = datetime.now(timezone.utc)
+    soon = now + timedelta(days=30)
+
+    licenses = db.execute(select(LicenseORM)).scalars().all()
+    total_stores = db.execute(select(sa_func.count()).select_from(StoreORM)).scalar_one()
+    total_users = db.execute(select(sa_func.count()).select_from(User)).scalar_one()
+
+    return DashboardStats(
+        total_stores=int(total_stores),
+        total_users=int(total_users),
+        licenses_active=sum(1 for lic in licenses if lic.status == "active"),
+        licenses_trial=sum(1 for lic in licenses if lic.status == "trial"),
+        licenses_suspended=sum(1 for lic in licenses if lic.status == "suspended"),
+        licenses_expiring_soon=sum(
+            1 for lic in licenses
+            if lic.status in ("active", "trial")
+            and lic.current_period_end is not None
+            and now <= lic.current_period_end <= soon
+        ),
+    )
+
+
+# ─── Invites (全店舗) ─────────────────────────────────────────
+
+class AdminInviteOut(BaseModel):
+    id: uuid.UUID
+    store_id: uuid.UUID
+    store_name: str
+    code: str
+    role: str
+    max_uses: int
+    used_count: int
+    expires_at: Optional[datetime]
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+@router.get("/invites", response_model=List[AdminInviteOut])
+def list_all_invites(db: Session = Depends(get_db)) -> List[AdminInviteOut]:
+    rows = db.execute(
+        select(StoreInviteORM, StoreORM)
+        .join(StoreORM, StoreORM.id == StoreInviteORM.store_id)
+        .order_by(StoreInviteORM.created_at.desc())
+    ).all()
+    return [
+        AdminInviteOut(
+            id=inv.id,
+            store_id=inv.store_id,
+            store_name=store.name,
+            code=inv.code,
+            role=inv.role,
+            max_uses=inv.max_uses,
+            used_count=inv.used_count,
+            expires_at=inv.expires_at,
+            created_at=inv.created_at,
+        )
+        for inv, store in rows
+    ]
+
+
+@router.delete("/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_invite(invite_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
+    row = db.get(StoreInviteORM, invite_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="not found")
+    db.delete(row)
+    db.commit()
