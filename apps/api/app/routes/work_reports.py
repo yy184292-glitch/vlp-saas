@@ -12,6 +12,7 @@ from app.db.session import get_db
 from app.deps.auth import get_current_user
 from app.models.user import User
 from app.models.work_report import InvoiceORM, WorkReportItemORM, WorkReportORM
+from app.routes.push_notification import send_push_to_store
 from app.schemas.work_report import (
     InvoiceCreate,
     InvoiceOut,
@@ -108,6 +109,19 @@ def create_report(
 
     db.commit()
     db.refresh(report)
+
+    # プッシュ通知: 新しい整備依頼が作成された
+    if user.store_id:
+        try:
+            send_push_to_store(db, str(user.store_id), {
+                "title": "新しい整備依頼",
+                "body": f"{report.title or '作業報告書'} が作成されました。",
+                "url": f"/work-orders",
+                "tag": "new-work-report",
+            })
+        except Exception:
+            pass  # 通知失敗はサイレントに無視
+
     return WorkReportOut.model_validate(report)
 
 

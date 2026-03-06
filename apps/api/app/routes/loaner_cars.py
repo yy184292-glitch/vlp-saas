@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.loaner_car import LoanerCarORM, LoanerReservationORM
+from app.routes.push_notification import send_push_to_store
 from app.schemas.loaner_car import (
     LoanerCarCreate,
     LoanerCarOut,
@@ -228,6 +229,21 @@ def create_reservation(
     db.add(reservation)
     db.commit()
     db.refresh(reservation)
+
+    # プッシュ通知: 返却期限が今日の場合に通知
+    from datetime import date as date_cls
+    today = date_cls.today()
+    if reservation.end_date == today:
+        try:
+            send_push_to_store(db, str(store_id), {
+                "title": "代車の返却期限",
+                "body": f"{reservation.customer_name} 様の代車（{car.name}）は本日返却予定です。",
+                "url": "/loaner",
+                "tag": "loaner-return",
+            })
+        except Exception:
+            pass
+
     return reservation
 
 
