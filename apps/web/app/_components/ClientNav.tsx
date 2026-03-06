@@ -9,7 +9,7 @@ import { Container } from "./layout/Container";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { applyBgGrayClass, getBgGrayFromStorage, setBgGrayToStorage } from "./UiPreferences";
-import { Settings, KeyRound, LogOut, User, ShieldCheck } from "lucide-react";
+import { Settings, KeyRound, LogOut, User, ShieldCheck, FileText } from "lucide-react";
 
 type NavLinkProps = { href: string; label: string; exact?: boolean };
 
@@ -274,6 +274,7 @@ function AdminMenu() {
     { href: "/admin/dashboard", label: "管理ダッシュボード" },
     { href: "/admin/licenses", label: "ライセンス管理" },
     { href: "/admin/invites", label: "紹介管理" },
+    { href: "/admin/invoices", label: "請求書管理" },
     { href: "/admin/licenses/new", label: "新規ライセンス発行" },
   ];
 
@@ -470,6 +471,23 @@ function UserMenu({ onLogout }: { onLogout: () => void }) {
             }}
           >
             <KeyRound size={14} /> パスワード変更
+          </Link>
+          <Link
+            href="/settings/invoices"
+            onClick={() => setOpen(false)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 10px",
+              borderRadius: 10,
+              textDecoration: "none",
+              color: "#e0e0e0",
+              fontWeight: 700,
+              fontSize: 13,
+            }}
+          >
+            <FileText size={14} /> 請求書確認
           </Link>
           <div style={{ margin: "4px 0", borderTop: "1px solid #3a3a3a" }} />
           <button
