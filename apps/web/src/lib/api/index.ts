@@ -17,3 +17,4 @@ export * from "./licenseInvoice";
 export * from "./partner";
 export * from "./referral";
 export * from "./stripe";
+export * from "./integrations";
