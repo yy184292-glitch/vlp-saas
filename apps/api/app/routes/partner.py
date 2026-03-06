@@ -181,13 +181,14 @@ def update_partner(
     return _to_out(partner, store, count)  # type: ignore[arg-type]
 
 
-@router.delete("/{partner_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{partner_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def delete_partner(partner_id: str, db: Session = Depends(get_db)) -> None:
     partner = db.get(PartnerORM, uuid.UUID(partner_id))
     if not partner:
         raise HTTPException(status_code=404, detail="Partner not found")
     db.delete(partner)
     db.commit()
+    return
 
 
 @router.get("/{partner_id}/stores", response_model=List[dict])
