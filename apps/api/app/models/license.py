@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, ForeignKey, String, Text
+from sqlalchemy import Column, Date, DateTime, ForeignKey, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from app.models.base import Base
@@ -34,6 +34,10 @@ class LicenseORM(Base):
     trial_ends_at = Column(DateTime(timezone=True), nullable=True)
     current_period_start = Column(DateTime(timezone=True), nullable=True)
     current_period_end = Column(DateTime(timezone=True), nullable=True)
+
+    # monthly / yearly
+    billing_cycle = Column(String(16), nullable=False, server_default="monthly")
+    next_billing_date = Column(Date(), nullable=True)
 
     notes = Column(Text, nullable=True)
 
