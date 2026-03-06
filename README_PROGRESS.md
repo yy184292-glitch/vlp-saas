@@ -224,6 +224,15 @@
 |---|---|---|---|
 | 131 | apps/web/app/(app)/maintenance-records/page.tsx | 整備記録簿ページ（完了済み作業報告書を月別グループ表示・全文検索・作業/部材件数・合計金額表示） | 9f97aac |
 | 132 | apps/web/app/_components/ClientNav.tsx | ナビに「整備記録簿」リンク追加 | 82b38d1 |
+
+### Phase 16: 経費ページ改善・カテゴリ管理
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 133 | `apps/api/app/routes/expenses.py` | `ExpenseOut` に `attachment_count` フィールド追加・`list_expenses` で GROUP BY 一括取得（N+1回避） | b723a86 |
+| 134 | `apps/api/app/routes/masters.py` | `DELETE /master/expense-categories/{id}` 追加（is_system=true は 400） | 8431fde |
+| 135 | `apps/web/app/(app)/sales/expenses/page.tsx` | 月次サマリーカード・カテゴリカラーバッジ・添付アイコン（ReceiptCell 統合）・ライトテーマクラス除去 | 9f14cc1 |
+| 136 | `apps/web/app/(app)/masters/expense-categories/page.tsx` | 経費カテゴリ管理ページ新規作成（プリセット一覧・カスタム追加/削除/上下並び替え） | 2c3249c |
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
