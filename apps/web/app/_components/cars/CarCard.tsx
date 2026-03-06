@@ -8,7 +8,8 @@ import {
   carTitle,
   formatText,
   statusTone,
-  statusClassName,
+  cardBorderClass,
+  statusBadgeStyle,
   type CarThumbResolver,
   defaultThumbResolver,
 } from "./carPresenters";
@@ -31,11 +32,12 @@ export function CarCard({
   const thumbUrl = resolveThumb(car);
 
   const tone = statusTone(car.status);
-  const statusClass = statusClassName(tone);
+  const borderClass = cardBorderClass(tone);
+  const badgeStyle = statusBadgeStyle(tone);
 
   return (
     <Card
-      className="shadow-sm hover:bg-muted/30 cursor-pointer"
+      className={`shadow-sm hover:bg-muted/30 cursor-pointer overflow-hidden ${borderClass}`}
       onClick={onClick}
       role="button"
       tabIndex={0}
@@ -48,9 +50,22 @@ export function CarCard({
           <div className="min-w-0 flex-1">
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0">
-                <div className="flex items-baseline gap-2">
+                <div className="flex items-baseline gap-2 flex-wrap">
                   <div className="font-semibold truncate">{title}</div>
-                  <div className={`text-xs font-medium ${statusClass} whitespace-nowrap`}>{status}</div>
+                  {car.status && (
+                    <span
+                      style={{
+                        ...badgeStyle,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: "2px 7px",
+                        borderRadius: 6,
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {status}
+                    </span>
+                  )}
                 </div>
 
                 <div className="mt-1 text-sm text-muted-foreground">
