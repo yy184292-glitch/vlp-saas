@@ -49,6 +49,7 @@ from app.routes.referral import router as referral_router
 from app.routes.stripe_webhook import router as stripe_webhook_router
 from app.routes.stripe_payment import router as stripe_payment_router
 from app.routes.integrations import router as integrations_router
+from app.routes.push_notification import router as push_notification_router
 
 logger = logging.getLogger(__name__)
 
@@ -225,3 +226,4 @@ app.include_router(referral_router, prefix=API_PREFIX)
 app.include_router(stripe_webhook_router, prefix=API_PREFIX)
 app.include_router(stripe_payment_router, prefix=API_PREFIX)
 app.include_router(integrations_router, prefix=API_PREFIX)
+app.include_router(push_notification_router, prefix=API_PREFIX)
