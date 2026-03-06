@@ -15,8 +15,8 @@ export function VehicleSelect({ value, onChange, placeholder = "車両を選択"
   const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
-    listCars()
-      .then(setCars)
+    listCars({ limit: 200 })
+      .then((r) => setCars(r.items))
       .catch(() => setCars([]))
       .finally(() => setLoading(false));
   }, []);

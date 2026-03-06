@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { CustomerSelect } from "@/app/_components/forms/CustomerSelect";
-import { VehicleSelect } from "@/app/_components/forms/VehicleSelect";
-import { TaxCalculatorPanel } from "@/app/_components/forms/TaxCalculatorPanel";
+import { CustomerSelect } from "@/components/forms/CustomerSelect";
+import { VehicleSelect } from "@/components/forms/VehicleSelect";
+import { TaxCalculatorPanel } from "@/components/forms/TaxCalculatorPanel";
 import { apiFetch, type Car } from "@/lib/api";
 
 function fmtYen(n: number) {

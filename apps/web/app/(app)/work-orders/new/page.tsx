@@ -7,10 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
-import { CustomerSelect, type CustomerOption } from "@/app/_components/forms/CustomerSelect";
-import { VehicleSelect } from "@/app/_components/forms/VehicleSelect";
-import { LineItemRow, type LineItem } from "@/app/_components/forms/LineItemRow";
-import { TotalSummary } from "@/app/_components/forms/TotalSummary";
+import { CustomerSelect, type CustomerOption } from "@/components/forms/CustomerSelect";
+import { VehicleSelect } from "@/components/forms/VehicleSelect";
+import { LineItemRow, type LineItem } from "@/components/forms/LineItemRow";
+import { TotalSummary } from "@/components/forms/TotalSummary";
 import { createWorkReport, listWorkMasters, type Car, type WorkMaster } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
