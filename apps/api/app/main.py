@@ -42,6 +42,8 @@ from app.routes.admin import router as admin_router
 from app.routes.loaner_cars import router as loaner_cars_router
 from app.routes.sns import router as sns_router
 from app.routes.attendance import router as attendance_router
+from app.routes.license_invoice import router as license_invoice_router
+from app.routes.license_invoice import store_router as store_invoice_router
 
 logger = logging.getLogger(__name__)
 
@@ -211,3 +213,5 @@ app.include_router(admin_router, prefix=API_PREFIX)
 app.include_router(loaner_cars_router, prefix=API_PREFIX)
 app.include_router(sns_router, prefix=API_PREFIX)
 app.include_router(attendance_router, prefix=API_PREFIX)
+app.include_router(license_invoice_router, prefix=API_PREFIX)
+app.include_router(store_invoice_router, prefix=API_PREFIX)
