@@ -9,7 +9,7 @@ import { Container } from "./layout/Container";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { applyBgGrayClass, getBgGrayFromStorage, setBgGrayToStorage } from "./UiPreferences";
-import { Settings, KeyRound, LogOut, User } from "lucide-react";
+import { Settings, KeyRound, LogOut, User, ShieldCheck } from "lucide-react";
 
 type NavLinkProps = { href: string; label: string; exact?: boolean };
 
@@ -130,6 +130,111 @@ function ReportsMenu() {
           }}
         >
           {items.map((it) => {
+            const a = isActivePath(pathname, it.href, false);
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                onClick={() => setOpen(false)}
+                style={{
+                  display: "block",
+                  padding: "10px 10px",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  color: "#e0e0e0",
+                  background: a ? "#3a3a3a" : "transparent",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {it.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminMenu() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const adminItems: MenuItem[] = [
+    { href: "/admin/dashboard", label: "管理ダッシュボード" },
+    { href: "/admin/licenses", label: "ライセンス管理" },
+    { href: "/admin/invites", label: "紹介管理" },
+    { href: "/admin/licenses/new", label: "新規ライセンス発行" },
+  ];
+
+  const active = adminItems.some((it) => isActivePath(pathname, it.href, false));
+
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (btnRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          padding: "9px 12px",
+          borderRadius: 12,
+          border: active ? "1px solid #555" : "2px solid #3a3a3a",
+          background: active ? "#3a3a3a" : "transparent",
+          color: active ? "#fff" : "#bbb",
+          fontWeight: 800,
+          fontSize: 13,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          boxShadow: active ? "0 1px 0 rgba(0,0,0,0.4)" : "none",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 6,
+        }}
+      >
+        <ShieldCheck size={13} />
+        管理者 ▾
+      </button>
+
+      {open && (
+        <div
+          ref={panelRef}
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 8px)",
+            width: 200,
+            background: "#2a2a2a",
+            border: "1px solid #3a3a3a",
+            borderRadius: 14,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+            padding: 8,
+            zIndex: 50,
+          }}
+        >
+          {adminItems.map((it) => {
             const a = isActivePath(pathname, it.href, false);
             return (
               <Link
@@ -374,12 +479,13 @@ export default function ClientNav() {
               label="勤怠管理"
             />
             {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
-            {isSuperAdmin ? <NavLink href="/admin/licenses" label="管理者" /> : null}
+            {/* Admin NavLink は AdminMenu ドロップダウンに移動 */}
           </div>
 
           {/* ドロップダウンを持つ要素はoverflow:autoの外に配置 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
             {canViewSales ? <ReportsMenu /> : null}
+            {isSuperAdmin ? <AdminMenu /> : null}
 
             <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
               <Label style={{ fontSize: 12, fontWeight: 800, color: "#999" }} htmlFor="bg-gray-toggle">
