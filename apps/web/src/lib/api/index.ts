@@ -10,3 +10,4 @@ export * from "./stores";
 export * from "./importCsv";
 export * from "./sales";
 export * from "./admin";
+export * from "./loanerCars";
