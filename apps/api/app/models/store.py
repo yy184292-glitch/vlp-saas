@@ -37,6 +37,9 @@ class StoreORM(Base):
     bank_account_number = Column(String(32), nullable=True)
     bank_account_holder = Column(String(128), nullable=True)
 
+    # 各店舗が他店舗に配布する紹介コード（VLP-XXXXXXXX 形式、8文字英数字）
+    own_referral_code = Column(String(16), nullable=True, unique=True)
+
     # 契約プラン（例: basic / standard / pro）
     plan_code = Column(String(32), nullable=False, server_default="basic")
 
