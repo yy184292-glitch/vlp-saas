@@ -316,6 +316,46 @@
 - **年払いバナー**: 店舗ページで月払い利用中の場合に割引額・節約額を強調表示
 - **権限**: /admin/license-invoices は superadmin 専用・/store-invoices は全ロール（自店舗のみ）
 
+### Phase 21: Stripe連携・紹介制度・パートナー制度・ローン/保証/保険機能フラグ
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 174 | `apps/api/requirements.txt` | stripe>=10.0 追加 | 前フェーズ |
+| 175 | `apps/api/alembic/versions/20260306_05_create_partners_referrals_stripe.py` | partners / referrals テーブル + stores.own_referral_code + licenses Stripe/紹介カラム | 前フェーズ |
+| 176 | `apps/api/alembic/versions/20260306_06_add_integration_flags_to_store_settings.py` | store_settings にローン/保証/保険 enabled+url+company_name 追加 | 前フェーズ |
+| 177 | `apps/api/app/models/partner.py` | PartnerORM（code自動生成、rank、loan/warranty/insurance type） | 前フェーズ |
+| 178 | `apps/api/app/models/referral.py` | ReferralORM（status: pending/active/cancelled、activated_at） | 前フェーズ |
+| 179 | `apps/api/app/models/license.py` | referral_code / referral_discount / partner_id / stripe_* カラム追加 | 前フェーズ |
+| 180 | `apps/api/app/models/store.py` | own_referral_code カラム追加 | 前フェーズ |
+| 181 | `apps/api/app/models/store_setting.py` | loan/warranty/insurance enabled + url + company_name カラム追加 | 前フェーズ |
+| 182 | `apps/api/app/schemas/partner.py` | PartnerCreate/Update/Out + RANK_THRESHOLDS定数 | 前フェーズ |
+| 183 | `apps/api/app/schemas/referral.py` | ReferralOut / MyDiscountOut + REFERRAL_DISCOUNT_PER_ACTIVE=1000 | 前フェーズ |
+| 184 | `apps/api/app/routes/partner.py` | 管理CRUD + stats取得 + rank自動昇格 (superadmin専用) | 前フェーズ |
+| 185 | `apps/api/app/routes/referral.py` | 紹介一覧/手動有効化/自分のコード取得・生成/割引計算 | 前フェーズ |
+| 186 | `apps/api/app/routes/stripe_webhook.py` | Webhook処理（subscription作成/削除・payment_succeeded→90日後紹介有効化） | 前フェーズ |
+| 187 | `apps/api/app/routes/stripe_payment.py` | checkout-session / portal-session / subscription-status（モック対応） | 前フェーズ |
+| 188 | `apps/api/app/routes/integrations.py` | GET/PUT /integrations（ローン/保証/保険設定） | 前フェーズ |
+| 189 | `apps/api/app/main.py` | partner/referral/stripe_webhook/stripe_payment/integrations ルーター登録 | 前フェーズ |
+| 190 | `apps/web/src/lib/api/partner.ts` + `index.ts` | パートナーAPIクライアント・RANK_LABELS/RANK_COLORS定数 | 前フェーズ |
+| 191 | `apps/web/src/lib/api/referral.ts` | 紹介APIクライアント・REFERRAL_DISCOUNT_PER_ACTIVE=1000 | 前フェーズ |
+| 192 | `apps/web/src/lib/api/stripe.ts` | Stripe checkout/portal/status APIクライアント | 前フェーズ |
+| 193 | `apps/web/src/lib/api/integrations.ts` | 統合設定APIクライアント | 前フェーズ |
+| 194 | `apps/web/app/(app)/admin/partners/page.tsx` | パートナー管理ページ（一覧・作成・編集・削除） | 前フェーズ |
+| 195 | `apps/web/app/(app)/admin/partners/[id]/page.tsx` | パートナー詳細（stats・rank・紹介店舗テーブル） | 前フェーズ |
+| 196 | `apps/web/app/(app)/settings/referral/page.tsx` | 紹介・割引ページ（コード表示・コピー・割引サマリー・紹介店舗一覧） | f117e58 |
+| 197 | `apps/web/app/(app)/settings/billing/page.tsx` | 料金・決済ページ（プラン表示・紹介割引・年払いアップセル・Stripeポータル） | 11a76e2 |
+| 198 | `apps/web/app/(app)/masters/integrations/page.tsx` | ローン/保証/保険設定ページ（ON/OFFトグル・URL・会社名入力） | 753029e |
+| 199 | `apps/web/app/cars/[id]/CarDetailClient.tsx` | 車両詳細にローン/保証/保険申込ボタン追加（外部リンクのみ・法的安全） | 2d242d5 |
+| 200 | `apps/web/app/_components/ClientNav.tsx` | AdminMenu: パートナー管理 / MastersMenu: ローン/保証/保険設定 / UserMenu: 紹介・割引・料金・決済 | cb8ffbd |
+
+**仕様まとめ:**
+- **紹介コード**: VLP-XXXXXXXX形式（VLP- + 8文字英数字大文字）、未生成時は自動生成
+- **紹介割引**: 有効紹介1件につき¥1,000/月（上限なし）、月額から直接減算
+- **3ヶ月自動有効化**: Stripe payment_succeeded webhook で created_at から90日経過確認
+- **パートナーランク**: silver(3件以上)・gold(10件以上)・platinum(20件以上) 自動昇格
+- **Stripeモック**: STRIPE_SECRET_KEY未設定時はモックレスポンスで動作（本番設定まで無停止）
+- **申込ボタン**: ローン/保証/保険は外部URLリンクのみ。説明・比較なし（法的安全）
+- **環境変数**: STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / STRIPE_PRICE_ID_* / FRONTEND_URL
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
@@ -337,6 +377,15 @@
 | `DATABASE_URL` | PostgreSQL 接続文字列 |
 | `SECRET_KEY` | JWT 署名キー |
 | `SENTRY_DSN` | Sentry DSN（任意） |
+| `STRIPE_SECRET_KEY` | Stripe シークレットキー（任意・未設定時はモック） |
+| `STRIPE_WEBHOOK_SECRET` | Stripe Webhook署名シークレット（任意） |
+| `STRIPE_PRICE_ID_STARTER_MONTHLY` | Stripe Price ID: スターター月払い |
+| `STRIPE_PRICE_ID_STANDARD_MONTHLY` | Stripe Price ID: スタンダード月払い |
+| `STRIPE_PRICE_ID_PRO_MONTHLY` | Stripe Price ID: プロ月払い |
+| `STRIPE_PRICE_ID_STARTER_YEARLY` | Stripe Price ID: スターター年払い |
+| `STRIPE_PRICE_ID_STANDARD_YEARLY` | Stripe Price ID: スタンダード年払い |
+| `STRIPE_PRICE_ID_PRO_YEARLY` | Stripe Price ID: プロ年払い |
+| `FRONTEND_URL` | フロントURL（CORS許可リスト追加用） |
 
 ### Web (vlp-web)
 | 変数名 | 説明 |
