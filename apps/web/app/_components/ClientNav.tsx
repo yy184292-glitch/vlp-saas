@@ -157,6 +157,113 @@ function ReportsMenu() {
   );
 }
 
+function MastersMenu() {
+  const pathname = usePathname();
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  const items: MenuItem[] = [
+    { href: "/masters", label: "各種マスタ登録" },
+    { href: "/masters/expense-categories", label: "経費カテゴリ" },
+    { href: "/masters/car-status-colors", label: "車両ステータスカラー" },
+  ];
+
+  const active = items.some((it) =>
+    it.href === "/masters"
+      ? pathname === "/masters"
+      : isActivePath(pathname, it.href, false)
+  );
+
+  useEffect(() => {
+    function onDocMouseDown(e: MouseEvent) {
+      const t = e.target as Node | null;
+      if (!t) return;
+      if (btnRef.current?.contains(t)) return;
+      if (panelRef.current?.contains(t)) return;
+      setOpen(false);
+    }
+    document.addEventListener("mousedown", onDocMouseDown);
+    return () => document.removeEventListener("mousedown", onDocMouseDown);
+  }, []);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  return (
+    <div style={{ position: "relative", display: "inline-block" }}>
+      <button
+        ref={btnRef}
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          padding: "9px 12px",
+          borderRadius: 12,
+          border: active ? "1px solid #555" : "2px solid #3a3a3a",
+          background: active ? "#3a3a3a" : "transparent",
+          color: active ? "#fff" : "#bbb",
+          fontWeight: 800,
+          fontSize: 13,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          boxShadow: active ? "0 1px 0 rgba(0,0,0,0.4)" : "none",
+        }}
+      >
+        マスタ管理 ▾
+      </button>
+
+      {open && (
+        <div
+          ref={panelRef}
+          style={{
+            position: "absolute",
+            right: 0,
+            top: "calc(100% + 8px)",
+            width: 220,
+            background: "#2a2a2a",
+            border: "1px solid #3a3a3a",
+            borderRadius: 14,
+            boxShadow: "0 10px 30px rgba(0,0,0,0.4)",
+            padding: 8,
+            zIndex: 50,
+          }}
+        >
+          {items.map((it) => {
+            const a =
+              it.href === "/masters"
+                ? pathname === "/masters"
+                : isActivePath(pathname, it.href, false);
+            return (
+              <Link
+                key={it.href}
+                href={it.href}
+                onClick={() => setOpen(false)}
+                style={{
+                  display: "block",
+                  padding: "10px 10px",
+                  borderRadius: 10,
+                  textDecoration: "none",
+                  color: "#e0e0e0",
+                  background: a ? "#3a3a3a" : "transparent",
+                  fontWeight: 700,
+                  fontSize: 13,
+                }}
+              >
+                {it.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminMenu() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -467,7 +574,6 @@ export default function ClientNav() {
             <NavLink href="/work-orders" label="作業指示書" />
             <NavLink href="/cars" label="車両一覧" />
             <NavLink href="/billing" label="見積・請求書" />
-            <NavLink href="/masters" label="各種マスタ登録" />
             <NavLink href="/import" label="CSVインポート" />
             <NavLink href="/loaner" label="代車管理" />
             <NavLink href="/maintenance-records" label="整備記録簿" />
@@ -484,6 +590,7 @@ export default function ClientNav() {
 
           {/* ドロップダウンを持つ要素はoverflow:autoの外に配置 */}
           <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+            <MastersMenu />
             {canViewSales ? <ReportsMenu /> : null}
             {isSuperAdmin ? <AdminMenu /> : null}
 
