@@ -23,3 +23,6 @@ slowapi>=0.1.9
 
 # Error tracking
 sentry-sdk[fastapi]>=2.0
+
+# Stripe payment processing
+stripe>=10.0
