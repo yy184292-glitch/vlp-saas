@@ -364,6 +364,7 @@ export default function ClientNav() {
             <NavLink href="/billing" label="見積・請求書" />
             <NavLink href="/masters" label="各種マスタ登録" />
             <NavLink href="/import" label="CSVインポート" />
+            <NavLink href="/loaner" label="代車管理" />
             <NavLink href="/sales/expenses" label="経費一覧" />
             {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
             {isSuperAdmin ? <NavLink href="/admin/licenses" label="管理者" /> : null}
