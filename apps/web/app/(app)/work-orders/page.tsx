@@ -590,7 +590,10 @@ export default function Page() {
             作業マスタ更新
           </Button>
 
-          <Button onClick={() => setCreateOpen(true)}>+ 新規作成</Button>
+          <Button variant="outline" onClick={() => window.open("/work-orders/new", "_blank", "noopener,noreferrer")}>
+            ＋ 指示書を作成（新画面）
+          </Button>
+          <Button onClick={() => setCreateOpen(true)}>+ 新規作成（簡易）</Button>
         </div>
       </div>
 
