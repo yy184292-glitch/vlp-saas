@@ -13,3 +13,4 @@ export * from "./admin";
 export * from "./loanerCars";
 export * from "./sns";
 export * from "./attendance";
+export * from "./licenseInvoice";
