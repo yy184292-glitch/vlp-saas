@@ -202,6 +202,23 @@
 | 120 | `apps/web/app/_components/cars/CarCard.tsx` | ステータス別左ボーダー＋バッジスタイル適用（商談中:黄・売約済み:緑・整備中:橙・入庫待ち:グレー） | b95bf40 |
 | 121 | `apps/web/app/(app)/masters/work/page.tsx` | 誤字修正: 「工賞」→「工賃」（5箇所） | 63f3aba |
 
+### Phase 14: 代車管理・予約重複チェック
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 122 | alembic/versions/20260306_01_create_loaner_cars_and_reservations.py | loaner_cars + loaner_reservations テーブル作成マイグレーション | 749c9a3 |
+| 123 | apps/api/app/models/loaner_car.py | LoanerCarORM・LoanerReservationORM モデル（relationship/cascade） | 798791c |
+| 124 | apps/api/app/schemas/loaner_car.py | Pydantic スキーマ（Create/Update/Out・日付バリデーション） | 417ffe2 |
+| 125 | apps/api/app/routes/loaner_cars.py | CRUD API + _check_overlap 重複チェック（同一代車で期間重複→400） | a90f744 |
+| 126 | apps/api/app/main.py | loaner_cars ルーター登録 | 42e8339 |
+| 127 | apps/web/src/lib/api/loanerCars.ts | フロント API クライアント + findOverlappingReservations クライアント側チェック関数 | 861d2e5 |
+| 128 | apps/web/src/lib/api/index.ts | loanerCars をバレル追加 | 2d48f45 |
+| 129 | apps/web/app/(app)/loaner/page.tsx | 代車管理ページ（代車CRUD・予約一覧・予約フォーム・重複警告バナー） | ad58765 |
+| 130 | apps/web/app/_components/ClientNav.tsx | ナビに「代車管理」リンク追加 | 4761b9e |
+
+**重複チェック仕様:**
+- バックエンド: start_date <= new_end AND end_date >= new_start で既存予約を検索→ヒットで 400
+- フロントエンド: 予約フォームで代車・日付を変更するたびにリアルタイムチェック→重複があれば黄色警告バナー表示（送信はブロックしない）
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
