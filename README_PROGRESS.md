@@ -193,6 +193,15 @@
 | 115 | `apps/web/app/(app)/admin/licenses/page.tsx` | EditDialog に有効期限延長セクション追加（+30日/+90日/+1年・カスタム日付） | 3cd746f |
 | 116 | `apps/web/app/_components/ClientNav.tsx` | ログアウトボタン → UserMenu ドロップダウン（設定・パスワード変更・ログアウト） | 2a5cd03 |
 
+### Phase 13: UI改善
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 117 | `apps/web/app/globals.css` | ダークテーマ化（背景 #1e1e1e / カード #2a2a2a / テキスト白系）・`.vlp-bg-gray` を濃色に更新 | afb95fc |
+| 118 | `apps/web/app/_components/ClientNav.tsx` | ナビハードコードカラーをダーク系に統一（#1e1e1e背景・#3a3a3aボーダー・ドロップダウン #2a2a2a） | c6f3d2c |
+| 119 | `apps/web/app/_components/cars/carPresenters.ts` | 日本語ステータス対応（販売中/商談中/売約済み/整備中/入庫待ち）・`cardBorderClass`・`statusBadgeStyle` ヘルパー追加 | 62d4fd0 |
+| 120 | `apps/web/app/_components/cars/CarCard.tsx` | ステータス別左ボーダー＋バッジスタイル適用（商談中:黄・売約済み:緑・整備中:橙・入庫待ち:グレー） | b95bf40 |
+| 121 | `apps/web/app/(app)/masters/work/page.tsx` | 誤字修正: 「工賞」→「工賃」（5箇所） | 63f3aba |
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
