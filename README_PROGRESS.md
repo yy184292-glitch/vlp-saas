@@ -356,6 +356,32 @@
 - **申込ボタン**: ローン/保証/保険は外部URLリンクのみ。説明・比較なし（法的安全）
 - **環境変数**: STRIPE_SECRET_KEY / STRIPE_WEBHOOK_SECRET / STRIPE_PRICE_ID_* / FRONTEND_URL
 
+### Phase 22: PWA対応（オフライン・インストール・プッシュ通知）
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 201 | `apps/web/public/manifest.json` | Webアプリマニフェスト（name/icon/display/theme_color） | 5464e47 |
+| 202 | `apps/web/scripts/generate-icons.js` + `public/icons/*.png` | 純Node.jsアイコン生成スクリプト + 8サイズPNG（72〜512px） | 97c46fb |
+| 203 | `apps/web/public/sw.js` | Service Worker（Network First・事前キャッシュ・Push通知受信・通知クリックナビ） | b658ffe |
+| 204 | `apps/web/app/layout.tsx` | manifest link / theme-color / apple-mobile-web-app-* / viewport-fit=cover | f93bfb5 |
+| 205 | `apps/web/app/_components/PwaInstallPrompt.tsx` | インストールバナー（Android: beforeinstallprompt / iOS: 共有ボタン案内 / sessionStorage非表示） | 9485168 |
+| 206 | `apps/web/app/_components/ServiceWorkerRegistration.tsx` | SW登録・更新検知・「今すぐ更新」トースト | bb9aed1 |
+| 207 | `apps/web/app/(app)/layout.tsx` | ServiceWorkerRegistration + PwaInstallPrompt をアプリレイアウトに追加 | 2e15591 |
+| 208 | `apps/web/next.config.ts` | sw.js に Service-Worker-Allowed/no-cache、manifest.json に Content-Type ヘッダー | 6d0ada2 |
+| 209 | `apps/api/app/models/push_subscription.py` + migration | PushSubscriptionORM（endpoint/p256dh/auth/user_id/store_id） | b748033 |
+| 210 | `apps/api/app/routes/push_notification.py` + requirements.txt | POST /push/subscribe・DELETE /push/unsubscribe・POST /push/send / pywebpush>=2.0 | 9dfde07 |
+| 211 | `apps/api/app/routes/work_reports.py` + loaner_cars.py | 通知トリガー: 新規整備依頼作成時・代車返却期限当日 | cbb67a8 |
+| 212 | `apps/api/.env.example` | VAPID_PUBLIC_KEY/PRIVATE_KEY/EMAIL のサンプル + 生成方法コメント | d9aa6e5 |
+| 213 | `apps/api/app/main.py` | push_notification_router 登録 | 5346d2c |
+| 214 | `apps/web/app/globals.css` | safe-area-inset padding / スクロールバー非表示 / tap-highlight無効化 | cc5c3f0 |
+
+**仕様まとめ:**
+- **Service Worker**: Network First戦略（GET のみキャッシュ・POST/PUT/DELETE はスキップ）。古いキャッシュは activate 時に自動削除
+- **インストールバナー**: Android/Chrome → beforeinstallprompt イベント → ネイティブインストール。iOS → 共有ボタン案内。sessionStorage で「後で」が効く
+- **更新トースト**: SW の waiting 状態を検知 → 「今すぐ更新」で SKIP_WAITING → controllerchange でページリロード
+- **プッシュ通知**: VAPID鍵必須（未設定時はサイレント無視）。pywebpush で WebPush送信。endpoint 410 Gone 受信時は購読を自動削除
+- **通知トリガー**: 新規整備依頼（work_reports POST）・代車返却当日（loaner-reservations POST で end_date == today）
+- **スマホ最適化**: viewport-fit=cover + safe-area-inset-bottom でノッチ・ホームバー対応。-webkit-tap-highlight-color: transparent
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
