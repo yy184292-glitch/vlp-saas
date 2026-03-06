@@ -129,3 +129,38 @@ html, body {
     background: white !important;
   }
 }
+
+/* ============================================================
+   PWA / スマホ最適化
+   ============================================================ */
+
+/* safe-area-inset 対応（ノッチ・ホームバー）
+   viewport-fit=cover と組み合わせて機能する */
+body {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+/* スクロールバー非表示（スマホ向け） */
+@media (max-width: 768px) {
+  ::-webkit-scrollbar {
+    display: none;
+  }
+  * {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+}
+
+/* タップハイライト無効化 */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* スタンドアロン（PWAインストール済み）時のナビ高さ調整 */
+@media (display-mode: standalone) {
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
