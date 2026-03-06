@@ -292,6 +292,30 @@
 - **カラーカスタマイズ**: `<input type="color">` で選択 → 即時プレビュー（左ボーダー＋バッジ）→ 変更分のみ PUT で保存。デフォルト色への個別/全体リセット対応
 - **CarCard API色対応**: `statusColorMap` プロパティで渡すと `car.status` 名でマッチング → hex色からborder/badge styleを自動生成
 
+### Phase 20: 請求書・領収書発行（ライセンス料）・年払い対応
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 163 | `apps/api/alembic/versions/20260306_04_create_license_invoices.py` | license_invoicesテーブル作成・licensesにbilling_cycle/next_billing_date追加 | 7f59b6a |
+| 164 | `apps/api/app/models/license_invoice.py` | LicenseInvoiceORM モデル（INV-YYYY-NNNN・type・billing_cycle・消費税分離） | ba66d11 |
+| 165 | `apps/api/app/models/license.py` | billing_cycle / next_billing_date カラム追加 | 1f26cec |
+| 166 | `apps/api/app/schemas/license_invoice.py` | Pydantic スキーマ（Create/Out）+ PLAN_PRICES定数（月額/年額）+ TAX_RATE | 58871a7 |
+| 167 | `apps/api/app/routes/license_invoice.py` | CRUD API（list/create/get/paid/cancel）+ /store-invoices 店舗向け閲覧 | 3cc539a |
+| 168 | `apps/api/app/main.py` | license_invoice / store_invoice ルーター登録 | 5e073d0 |
+| 169 | `apps/web/src/lib/api/licenseInvoice.ts` + `index.ts` | フロント API クライアント・型定義・PLAN_PRICES定数 | fc42011 |
+| 170 | `apps/web/app/(app)/admin/invoices/page.tsx` | 請求書管理ページ（一覧・ステータス色分け・発行ダイアログ・支払済みマーク） | 9500584 |
+| 171 | `apps/web/app/(app)/admin/invoices/[id]/print/page.tsx` | PDF印刷ページ（A4縦・発行者/宛名/明細/消費税/振込先・領収書モード・収入印紙欄） | 08a027d |
+| 172 | `apps/web/app/(app)/settings/invoices/page.tsx` | 店舗向け請求書確認ページ（一覧・PDF印刷・年払いアップセルバナー） | e1966c2 |
+| 173 | `apps/web/app/_components/ClientNav.tsx` | AdminMenu: 請求書管理リンク追加 / UserMenu: 請求書確認リンク追加 | bd0e398 |
+
+**仕様まとめ:**
+- **書類種別**: invoice（請求書）/ receipt（領収書）を発行時に選択
+- **年払い料金（10%割引）**: スターター 105,840円/年・スタンダード 213,840円/年・プロ 321,840円/年
+- **INV-YYYY-NNNN**: 同年内連番で自動採番
+- **消費税**: バックエンドで10%を自動計算（amount × 0.1）
+- **収入印紙欄**: 領収書で合計5万円以上の場合に印刷レイアウトに表示
+- **年払いバナー**: 店舗ページで月払い利用中の場合に割引額・節約額を強調表示
+- **権限**: /admin/license-invoices は superadmin 専用・/store-invoices は全ロール（自店舗のみ）
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
