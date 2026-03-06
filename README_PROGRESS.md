@@ -405,6 +405,37 @@
 - **顧客紐付け**: LINE顧客 ↔ 既存顧客を customer_id FK で関連付け（任意）
 - **環境変数**: LINE_CHANNEL_ACCESS_TOKEN / LINE_CHANNEL_SECRET（DB の line_settings で店舗別管理が主）
 
+### Phase 24: 自賠責・重量税計算 + 見積・指示書作成ページ刷新
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 224 | `apps/api/app/services/tax_calculator.py` | 自賠責保険料テーブル（2024年度・5車種）・重量税テーブル（エコカー減税・13年/18年重課対応）・calc関数 | 1fd6677 |
+| 225 | `apps/api/app/routes/tax_calc.py` | POST /tax/calculate・GET /tax/vehicle-types・GET /tax/eco-types | 173bc23 |
+| 226 | `apps/api/app/main.py` | tax_calc_router 登録 | 355e21a |
+| 227 | `apps/web/src/lib/api/taxCalc.ts` + `index.ts` | フロント API クライアント・VEHICLE_TYPES/ECO_TYPES/JIBAISEKI_MONTHS_OPTIONS 定数 | a0feba6 |
+| 228 | `apps/web/src/components/forms/CustomerSelect.tsx` | 顧客プルダウン共通コンポーネント（API取得・名前/電話表示） | ee8a6cb |
+| 229 | `apps/web/src/components/forms/VehicleSelect.tsx` | 車両プルダウン共通コンポーネント（メーカー/車種/年式/ナンバー表示） | e2407ee |
+| 230 | `apps/web/src/components/forms/LineItemRow.tsx` | 明細行コンポーネント（マスタプルダウン・単価自動入力・税区分・上下移動・削除） | 356cc1e |
+| 231 | `apps/web/src/components/forms/TotalSummary.tsx` | 合計計算コンポーネント（10%/8%/非課税別計・リアルタイム計算） | c886a93 |
+| 232 | `apps/web/src/components/forms/TaxCalculatorPanel.tsx` | 法定費用折りたたみパネル（自賠責・重量税計算→明細に非課税で追加） | ec5e013 |
+| 233 | `apps/web/app/(app)/work-orders/new/page.tsx` | 指示書作成ページ（車両/顧客プルダウン・作業/部材明細・合計・別タブ対応） | 1cddb5a |
+| 234 | `apps/web/app/(app)/billing/new/maintenance/page.tsx` | 整備見積作成ページ（作業マスタプルダウン・税区分別・法定費用パネル） | 586a245 |
+| 235 | `apps/web/app/(app)/billing/new/car-sale/page.tsx` | 車販見積作成ページ（車両本体・付属品・法定費用・下取り・合計） | 37c256f |
+| 236 | `apps/web/app/(app)/billing/page.tsx` | 「車販見積を作成」「整備見積を作成」ボタン追加（別タブ） | f088004 |
+| 237 | `apps/web/app/(app)/tools/tax-calculator/page.tsx` | 自賠責・重量税 計算機スタンドアロンページ | df89e15 |
+| 238 | `apps/web/app/(app)/tools/page.tsx` | ツール一覧ハブページ | df89e15 |
+| 239 | `apps/web/app/_components/ClientNav.tsx` | ナビに「ツール」リンク追加 | cf69df7 |
+| 240 | `apps/web/app/(app)/work-orders/page.tsx` | 「指示書を作成（新画面）」ボタン追加 | fa20062 |
+
+**仕様まとめ:**
+- **自賠責料金**: 5車種（passenger/kei/kei_business/bike_small/moped）× 月数別テーブル（2024年度）
+- **重量税**: 0.5t刻み × 車齢3段階（13年未満/13〜18年未満/18年以上）× エコカー5区分
+- **エコカー減税**: 免税(0%)/75%減/50%減/25%減/非エコを multiplier で計算
+- **共通フォームコンポーネント**: `src/components/forms/` に配置（`@/components/forms/` でimport可）
+- **指示書**: 作業+部材の2セクション・作業マスタからプルダウン・上下移動・合計リアルタイム計算
+- **整備見積**: 税区分（課税10%/軽減8%/非課税/不課税）別計・法定費用パネル組み込み
+- **車販見積**: 車両本体+付属品（課税対象）+ 法定費用+登録費用+リサイクル預託金（非課税）+ 下取り（マイナス）
+- **別タブ対応**: 各作成ページは `window.open(..., "_blank")` で別タブ起動
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
