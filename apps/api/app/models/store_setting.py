@@ -54,3 +54,16 @@ class StoreSettingORM(Base):
     # 書類印刷の項目ON/OFF設定（JSON）
     # 例: {"ininjou": {"delegate": true, ...}, "jouto": {...}}
     print_fields = Column(JSONB, nullable=True)
+
+    # ── 機能ON/OFFフラグ（ローン・保証・保険）────────────────────────
+    loan_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
+    warranty_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
+    insurance_enabled = Column(Boolean, nullable=False, server_default="false", default=False)
+
+    # 各機能の申込先URL・会社名（有効時のみ表示）
+    loan_url = Column(String(512), nullable=True)
+    loan_company_name = Column(String(128), nullable=True)
+    warranty_url = Column(String(512), nullable=True)
+    warranty_company_name = Column(String(128), nullable=True)
+    insurance_url = Column(String(512), nullable=True)
+    insurance_company_name = Column(String(128), nullable=True)
