@@ -233,6 +233,27 @@
 | 135 | `apps/web/app/(app)/sales/expenses/page.tsx` | 月次サマリーカード・カテゴリカラーバッジ・添付アイコン（ReceiptCell 統合）・ライトテーマクラス除去 | 9f14cc1 |
 | 136 | `apps/web/app/(app)/masters/expense-categories/page.tsx` | 経費カテゴリ管理ページ新規作成（プリセット一覧・カスタム追加/削除/上下並び替え） | 2c3249c |
 
+### Phase 17: SNS自動投稿（車両登録・値下げ・SOLD OUT・定期再投稿）
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 137 | `apps/api/alembic/versions/20260306_02_create_sns_tables.py` | sns_settings + sns_posts テーブル作成マイグレーション | c5cb977 |
+| 138 | `apps/api/app/models/sns_post.py` | SnsSettingORM・SnsPostORM モデル | 66694a8 |
+| 139 | `apps/api/app/schemas/sns.py` | Pydantic スキーマ（SnsSettingOut/Update・SnsPostOut/Create・RepostScheduleItem） | cb3452b |
+| 140 | `apps/api/app/services/sns_service.py` | SNS投稿サービス（generate_caption・Twitter OAuth1・Instagram Graph API・LINE Messaging API・repost scheduling） | 21b5646 |
+| 141 | `apps/api/app/routes/sns.py` | SNS API ルート（settings GET/PUT・posts GET/POST・retry・preview・repost-schedule・trigger） | 0ae4320 |
+| 142 | `apps/api/app/main.py` | sns ルーター登録 | 9b5247b |
+| 143 | `apps/web/src/lib/api/sns.ts` | フロント API クライアント・型定義 | 2a9c92b |
+| 144 | `apps/web/src/lib/api/index.ts` | sns バレル追加 | b029d71 |
+| 145 | `apps/web/app/(app)/masters/sns/page.tsx` | SNS管理ページ（設定/投稿履歴/定期再投稿 3タブ構成） | a167657 |
+| 146 | `apps/web/app/_components/ClientNav.tsx` | ナビに「SNS投稿」リンク追加 | 43c30c0 |
+
+**仕様まとめ:**
+- **バックエンド**: Twitter v2 API（OAuth 1.0a 手動署名）・Instagram Graph API・LINE Messaging API broadcast をすべてhttpx HTTPSリクエストで実装（SDK不要）
+- **自動トリガー**: `POST /sns/trigger` に new_arrival / price_down / sold_out を渡すと auto_* フラグを確認して自動投稿（無効なら skipped）
+- **テンプレート変数**: `{car_name}` `{year}` `{mileage}` `{price}` `{store_name}` `{color}` `{comment}`
+- **定期再投稿**: repost_enabled=true かつ last_posted_at から repost_interval_weeks 週超過した販売中車両を自動検出（SOLD ステータスはスキップ）
+- **repost_count**: 何回目の再投稿かを sns_posts に記録
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
