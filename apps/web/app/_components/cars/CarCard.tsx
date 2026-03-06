@@ -14,30 +14,62 @@ import {
   defaultThumbResolver,
 } from "./carPresenters";
 
+/** APIから取得したステータスカラーマップ: { "在庫": "#DCFCE7", ... } */
+export type StatusColorMap = Record<string, string>;
+
+/**
+ * HEX カラーからボーダー・バッジのインラインスタイルを生成する。
+ * CarStatusMaster の color フィールド（ライトカラー）を想定。
+ */
+function colorToBorderStyle(color: string): React.CSSProperties {
+  return { borderLeft: `4px solid ${color}` };
+}
+
+function colorToBadgeStyle(color: string): React.CSSProperties {
+  return {
+    background: color + "40",
+    color: color,
+    border: `1px solid ${color}88`,
+  };
+}
+
 export function CarCard({
   car,
   onClick,
   resolveThumb = defaultThumbResolver,
   rightTopSlot,
+  statusColorMap,
 }: {
   car: Car;
   onClick: () => void;
   resolveThumb?: CarThumbResolver;
   /** 将来：…メニュー、タグ、バッジ等を置ける */
   rightTopSlot?: React.ReactNode;
+  /** APIから取得したステータスカラーマップ。指定があればAPI色を優先する。 */
+  statusColorMap?: StatusColorMap;
 }) {
   const title = carTitle(car);
   const status = formatText(car.status);
   const carNumber = formatText(car.carNumber);
   const thumbUrl = resolveThumb(car);
 
+  // API カラーが提供されていればそれを使用、なければ既存のトーンベース
+  const apiColor = car.status ? statusColorMap?.[car.status] : undefined;
+
   const tone = statusTone(car.status);
-  const borderClass = cardBorderClass(tone);
-  const badgeStyle = statusBadgeStyle(tone);
+  // ボーダー: API色 → inline style、なければ Tailwind クラス
+  const borderClass = apiColor ? "" : cardBorderClass(tone);
+  const borderStyle: React.CSSProperties = apiColor ? colorToBorderStyle(apiColor) : {};
+
+  // バッジ: API色 → inline style、なければ既存スタイル
+  const badgeStyle: React.CSSProperties = apiColor
+    ? colorToBadgeStyle(apiColor)
+    : statusBadgeStyle(tone);
 
   return (
     <Card
       className={`shadow-sm hover:bg-muted/30 cursor-pointer overflow-hidden ${borderClass}`}
+      style={borderStyle}
       onClick={onClick}
       role="button"
       tabIndex={0}
