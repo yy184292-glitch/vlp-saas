@@ -162,6 +162,7 @@ class ExpenseOut(BaseModel):
 
     payment_method: Optional[str]
     note: Optional[str]
+    attachment_count: int = 0
 
     created_at: datetime
     updated_at: datetime
@@ -222,13 +223,30 @@ def list_expenses(
         .limit(limit)
         .offset(offset)
     )
-    items = db.execute(stmt).scalars().all()
+    rows = db.execute(stmt).scalars().all()
 
     total = db.execute(
         select(func.count()).select_from(ExpenseORM).where(and_(*cond))
     ).scalar_one()
 
-    return ExpenseListOut(items=items, total=int(total or 0))
+    # 添付ファイル件数をバッチ取得（N+1回避）
+    expense_ids = [r.id for r in rows]
+    attachment_counts: dict = {}
+    if expense_ids:
+        cnt_rows = db.execute(
+            select(ExpenseAttachmentORM.expense_id, func.count().label("cnt"))
+            .where(ExpenseAttachmentORM.expense_id.in_(expense_ids))
+            .group_by(ExpenseAttachmentORM.expense_id)
+        ).all()
+        attachment_counts = {r.expense_id: r.cnt for r in cnt_rows}
+
+    out_items = []
+    for row in rows:
+        item = ExpenseOut.model_validate(row)
+        item.attachment_count = attachment_counts.get(row.id, 0)
+        out_items.append(item)
+
+    return ExpenseListOut(items=out_items, total=int(total or 0))
 
 
 @router.post("/expenses", response_model=ExpenseOut)
