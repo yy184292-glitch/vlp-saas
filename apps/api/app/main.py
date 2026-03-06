@@ -52,6 +52,7 @@ from app.routes.integrations import router as integrations_router
 from app.routes.push_notification import router as push_notification_router
 from app.routes.line_webhook import router as line_webhook_router
 from app.routes.line import router as line_router
+from app.routes.tax_calc import router as tax_calc_router
 
 logger = logging.getLogger(__name__)
 
@@ -231,3 +232,4 @@ app.include_router(integrations_router, prefix=API_PREFIX)
 app.include_router(push_notification_router, prefix=API_PREFIX)
 app.include_router(line_webhook_router, prefix=API_PREFIX)
 app.include_router(line_router, prefix=API_PREFIX)
+app.include_router(tax_calc_router, prefix=API_PREFIX)
