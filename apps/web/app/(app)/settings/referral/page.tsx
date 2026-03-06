@@ -90,7 +90,7 @@ export default function ReferralPage() {
             <div style={{ fontSize: 22, fontWeight: 900, color: discount.monthly_price_after === 0 ? "#34d399" : "#e0e0e0" }}>
               {discount.monthly_price_after === 0 ? "🎉 無料！" : fmtMoney(discount.monthly_price_after)}
             </div>
-            <div style={{ fontSize: 11, color: "#666", marginDecoration: "line-through" }}>通常 {fmtMoney(discount.monthly_price_before)}</div>
+            <div style={{ fontSize: 11, color: "#666", textDecoration: "line-through" }}>通常 {fmtMoney(discount.monthly_price_before)}</div>
           </div>
 
           {discount.free_slots_needed > 0 && (
