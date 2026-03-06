@@ -254,6 +254,28 @@
 - **定期再投稿**: repost_enabled=true かつ last_posted_at から repost_interval_weeks 週超過した販売中車両を自動検出（SOLD ステータスはスキップ）
 - **repost_count**: 何回目の再投稿かを sns_posts に記録
 
+### Phase 18: 勤怠管理（GPS打刻・管理者一覧）
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 147 | `apps/api/alembic/versions/20260306_03_create_attendance.py` | attendance テーブル作成（store_id/user_id/work_date 一意制約・GPS座標カラム） | 6f5c496 |
+| 148 | `apps/api/app/models/attendance.py` | AttendanceORM モデル | d86961a |
+| 149 | `apps/api/app/schemas/attendance.py` | Pydantic スキーマ（AttendanceOut/Update・ClockIn/OutRequest） | 219a0b0 |
+| 150 | `apps/api/app/routes/attendance.py` | 出退勤打刻・一覧・管理者修正/削除 API | b9365fd |
+| 151 | `apps/api/app/main.py` | attendance ルーター登録 | eb7e8e2 |
+| 152 | `apps/web/src/lib/api/attendance.ts` | フロント API クライアント（GPS取得・Nominatim逆ジオコーディング・勤務時間計算） | 95ebf12 |
+| 153 | `apps/web/src/lib/api/index.ts` | attendance バレル追加 | b11f5cf |
+| 154 | `apps/web/app/(app)/attendance/punch/page.tsx` | スタッフ打刻ページ（リアルタイム時計・出退勤ボタン・GPS住所表示） | a799200 |
+| 155 | `apps/web/app/(app)/attendance/page.tsx` | 管理者勤怠一覧ページ（スタッフ別サマリー・インライン編集・削除） | ec1e3c1 |
+| 156 | `apps/web/app/_components/ClientNav.tsx` | 勤怠管理リンク追加（管理者→一覧、スタッフ→打刻ページ） | 6227c2b |
+
+**仕様まとめ:**
+- **1ユーザー1日1レコード**（store_id + user_id + work_date に UNIQUE 制約）
+- **JST基準**: 打刻日の決定は UTC+9 で today を計算
+- **GPS**: `navigator.geolocation.getCurrentPosition()` → 拒否時は位置情報なしで打刻可（任意）
+- **Nominatim**: `https://nominatim.openstreetmap.org/reverse` で座標→日本語住所に変換（無料）
+- **権限分岐**: admin/manager → `/attendance`（一覧・修正・削除）、staff → `/attendance/punch`（打刻のみ）
+- **スタッフ自分限定**: GET /attendance でスタッフロールは自動的に自分のレコードのみ返す
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
