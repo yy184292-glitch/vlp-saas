@@ -4,7 +4,7 @@ import { apiFetch } from "./core";
 
 export type InvoiceType = "invoice" | "receipt";
 export type InvoiceBillingCycle = "monthly" | "yearly";
-export type InvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
+export type LicenseInvoiceStatus = "draft" | "issued" | "paid" | "cancelled";
 
 export interface LicenseInvoice {
   id: string;
@@ -22,7 +22,7 @@ export interface LicenseInvoice {
   issued_at: string | null;
   due_date: string | null;
   paid_at: string | null;
-  status: InvoiceStatus;
+  status: LicenseInvoiceStatus;
   note: string | null;
   created_at: string;
   updated_at: string;
