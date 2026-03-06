@@ -276,6 +276,22 @@
 - **権限分岐**: admin/manager → `/attendance`（一覧・修正・削除）、staff → `/attendance/punch`（打刻のみ）
 - **スタッフ自分限定**: GET /attendance でスタッフロールは自動的に自分のレコードのみ返す
 
+### Phase 19: 管理者機能強化・ステータスカラーカスタマイズ
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 157 | `apps/api/app/routes/admin.py` | GET /admin/dashboard（統計API）+ GET/DELETE /admin/invites（全店舗招待一覧）追加 | d7c54ab |
+| 158 | `apps/web/app/(app)/admin/dashboard/page.tsx` | 管理ダッシュボード（店舗数/ユーザー数/ライセンス状態別/期限切れ間近・クイックリンク） | 2fa2302 |
+| 159 | `apps/web/app/(app)/admin/invites/page.tsx` | 紹介管理ページ（全店舗招待コード一覧・検索・コピー・削除・期限切れグレーアウト） | d9c1f58 |
+| 160 | `apps/web/app/(app)/masters/car-status-colors/page.tsx` | ステータスカラー管理ページ（カラーピッカー・リアルタイムプレビュー・デフォルトに戻す・保存） | d7103c3 |
+| 161 | `apps/web/app/_components/cars/CarCard.tsx` | statusColorMap? prop 追加・API色でborder/badgeを描画（フォールバック: トーンベース） | 868f340 |
+| 162 | `apps/web/app/_components/ClientNav.tsx` | adminメニューを単一NavLink → AdminMenu ドロップダウンに変更（管理ダッシュボード・ライセンス管理・紹介管理） | dcd82aa |
+
+**仕様まとめ:**
+- **管理ダッシュボード**: superadmin が全店舗の統計を一覧。30日以内に期限切れのライセンスを警告色で強調
+- **紹介管理**: 全店舗の招待コードを横断表示。使用済み/期限切れコードはグレーアウト
+- **カラーカスタマイズ**: `<input type="color">` で選択 → 即時プレビュー（左ボーダー＋バッジ）→ 変更分のみ PUT で保存。デフォルト色への個別/全体リセット対応
+- **CarCard API色対応**: `statusColorMap` プロパティで渡すと `car.status` 名でマッチング → hex色からborder/badge styleを自動生成
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
