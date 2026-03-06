@@ -368,6 +368,11 @@ export default function ClientNav() {
             <NavLink href="/maintenance-records" label="整備記録簿" />
             <NavLink href="/sales/expenses" label="経費一覧" />
             <NavLink href="/masters/sns" label="SNS投稿" />
+            {/* 勤怠管理: 管理者→一覧、スタッフ→打刻ページ */}
+            <NavLink
+              href={role === "admin" || role === "manager" || role === "superadmin" ? "/attendance" : "/attendance/punch"}
+              label="勤怠管理"
+            />
             {(role === "admin" || role === "manager") ? <NavLink href="/staff" label="スタッフ" /> : null}
             {isSuperAdmin ? <NavLink href="/admin/licenses" label="管理者" /> : null}
           </div>
