@@ -635,6 +635,7 @@ export default function ClientNav() {
             <NavLink href="/sales/expenses" label="経費一覧" />
             <NavLink href="/masters/sns" label="SNS投稿" />
             <NavLink href="/line" label="LINE管理" />
+            <NavLink href="/tools" label="ツール" />
             {/* 勤怠管理: 管理者→一覧、スタッフ→打刻ページ */}
             <NavLink
               href={role === "admin" || role === "manager" || role === "superadmin" ? "/attendance" : "/attendance/punch"}
