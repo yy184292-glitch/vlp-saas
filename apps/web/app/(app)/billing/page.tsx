@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import * as React from "react";
 
 import type { ApiError } from "@/lib/api";
@@ -55,6 +56,7 @@ function errorMessage(e: unknown): string {
 }
 
 export default function BillingPage() {
+  const router = useRouter();
   const [items, setItems] = React.useState<BillingOut[]>([]);
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string>("");
@@ -176,11 +178,14 @@ export default function BillingPage() {
           <div className="text-sm text-muted-foreground">{items.length} 件</div>
         </div>
 
-        <div className="flex gap-2">
-          <Button onClick={() => createDraft("invoice")}>+ 請求書（下書き）</Button>
-          <Button variant="outline" onClick={() => createDraft("estimate")}>
-            + 見積（下書き）
+        <div className="flex gap-2 flex-wrap">
+          <Button onClick={() => window.open("/billing/new/car-sale", "_blank", "noopener,noreferrer")}>
+            ＋ 車販見積を作成
           </Button>
+          <Button variant="outline" onClick={() => window.open("/billing/new/maintenance", "_blank", "noopener,noreferrer")}>
+            ＋ 整備見積を作成
+          </Button>
+          <Button onClick={() => createDraft("invoice")} variant="outline">+ 請求書（下書き）</Button>
           <Button variant="outline" onClick={reload} disabled={loading}>
             {loading ? "更新中…" : "更新"}
           </Button>
