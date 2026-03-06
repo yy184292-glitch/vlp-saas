@@ -289,10 +289,11 @@ def list_all_invites(db: Session = Depends(get_db)) -> List[AdminInviteOut]:
     ]
 
 
-@router.delete("/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/invites/{invite_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None)
 def delete_invite(invite_id: uuid.UUID, db: Session = Depends(get_db)) -> None:
     row = db.get(StoreInviteORM, invite_id)
     if not row:
         raise HTTPException(status_code=404, detail="not found")
     db.delete(row)
     db.commit()
+    return
