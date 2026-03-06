@@ -382,6 +382,29 @@
 - **通知トリガー**: 新規整備依頼（work_reports POST）・代車返却当日（loaner-reservations POST で end_date == today）
 - **スマホ最適化**: viewport-fit=cover + safe-area-inset-bottom でノッチ・ホームバー対応。-webkit-tap-highlight-color: transparent
 
+### Phase 23: LINE連携（顧客通知・問い合わせ対応）
+| # | ファイル | 内容 | コミット |
+|---|---|---|---|
+| 215 | `apps/api/app/models/line_setting.py` + `line_customer.py` + `line_message.py` + migration | LineSettingORM / LineCustomerORM / LineMessageORM + `20260306_08_create_line_tables.py` | bf842a8 |
+| 216 | `apps/api/app/services/line_service.py` | verify_signature / send_message / reply / broadcast / send_flex_message / get_profile + Flex Messageテンプレート3種 | b16a8ce |
+| 217 | `apps/api/app/routes/line_webhook.py` | POST /line/webhook（follow/unfollow/message 処理・署名検証・自動返信・PWAプッシュ通知） | 3af7dd2 |
+| 218 | `apps/api/app/routes/line.py` | GET/PUT /line/settings, POST /line/settings/test, GET /line/customers, PUT /line/customers/{id}/link, GET /line/messages, POST /line/messages/send・broadcast, POST /line/notify/work-order・estimate | c0f0472 |
+| 219 | `apps/api/app/main.py` + `.env.example` | line_webhook_router / line_router 登録、LINE_CHANNEL_ACCESS_TOKEN 環境変数追加 | 62c0b37 |
+| 220 | `apps/web/src/lib/api/line.ts` + `index.ts` | LINE APIクライアント・型定義（設定/顧客/メッセージ/通知） | 69aa2cc |
+| 221 | `apps/web/app/(app)/masters/line/page.tsx` | LINE設定ページ（Channel Token/Secret/LIFF・Webhook URL表示+コピー・接続テスト・自動返信・ウェルカムメッセージ） | 305da8e |
+| 222 | `apps/web/app/(app)/line/page.tsx` | LINE管理ページ（友だち一覧タブ・チャット形式メッセージタブ・一斉送信タブ） | 90aebbe |
+| 223 | `apps/web/app/_components/ClientNav.tsx` | MastersMenu: LINE設定 / ナビ: LINE管理 追加 | 136911b |
+
+**仕様まとめ:**
+- **Webhook URL**: `/api/v1/line/webhook?store_id={store_uuid}` 形式。店舗ごとに固有URL
+- **署名検証**: HMAC-SHA256 で X-Line-Signature を検証（セキュリティ必須。channel_secret 未設定時は警告のみ）
+- **フォローイベント**: LINE プロフィール取得 → line_customers upsert → ウェルカムメッセージ送信 → PWAプッシュ通知
+- **アンフォロー**: follow_status を blocked に更新
+- **受信メッセージ**: line_messages に保存 → 自動返信（enabled 時）→ PWAプッシュ通知
+- **Flex Message**: 整備完了・見積送付・入庫受付の3テンプレートを辞書型で実装（外部SDK不要）
+- **顧客紐付け**: LINE顧客 ↔ 既存顧客を customer_id FK で関連付け（任意）
+- **環境変数**: LINE_CHANNEL_ACCESS_TOKEN / LINE_CHANNEL_SECRET（DB の line_settings で店舗別管理が主）
+
 ## 未対応 / 今後の課題
 
 | 優先度 | 内容 | 対象ファイル |
